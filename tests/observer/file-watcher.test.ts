@@ -47,6 +47,56 @@ describe('FileWatcher', () => {
     fw.stop();
   });
 
+  it('emits only new lines on subsequent appends', async () => {
+    const projectDir = join(base, 'proj');
+    mkdirSync(projectDir);
+    const file = join(projectDir, 'seq.jsonl');
+    writeFileSync(file, '');
+    const lines: string[] = [];
+    const fw = new FileWatcher({
+      rootDir: base,
+      onLine: (_p, l) => lines.push(l),
+      scanIntervalMs: 1000,
+      tailIntervalMs: 500,
+    });
+    fw.start();
+
+    appendFileSync(file, '{"a":1}\n');
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(lines).toEqual(['{"a":1}']);
+
+    appendFileSync(file, '{"b":2}\n{"c":3}\n');
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(lines).toEqual(['{"a":1}', '{"b":2}', '{"c":3}']);
+
+    fw.stop();
+  });
+
+  it('buffers partial lines until newline arrives', async () => {
+    const projectDir = join(base, 'proj');
+    mkdirSync(projectDir);
+    const file = join(projectDir, 'partial.jsonl');
+    writeFileSync(file, '');
+    const lines: string[] = [];
+    const fw = new FileWatcher({
+      rootDir: base,
+      onLine: (_p, l) => lines.push(l),
+      scanIntervalMs: 1000,
+      tailIntervalMs: 500,
+    });
+    fw.start();
+
+    appendFileSync(file, '{"part":"A"');   // no trailing newline
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(lines).toEqual([]);             // nothing emitted yet
+
+    appendFileSync(file, '}\n');           // complete the line
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(lines).toEqual(['{"part":"A"}']);
+
+    fw.stop();
+  });
+
   it('emits onFileAdded and onFileClosed callbacks', async () => {
     const projectDir = join(base, 'proj');
     mkdirSync(projectDir);

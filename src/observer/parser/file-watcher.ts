@@ -14,10 +14,10 @@ export interface FileWatcherOptions {
 interface TrackedFile {
   path: string;
   offset: number;
-  /** real mtime from statSync, used to detect changes */
-  lastMtimeMs: number;
-  /** Date.now() timestamp of last observed mtime change, for stale detection */
+  /** Date.now() timestamp of last new bytes read, for stale detection */
   lastActivityAt: number;
+  /** incomplete line fragment waiting for its terminating newline */
+  lineBuffer: string;
 }
 
 export class FileWatcher {
@@ -53,6 +53,7 @@ export class FileWatcher {
   private scanOnce(): void {
     const now = Date.now();
     let entries: string[];
+    // EACCES or ENOENT here is silently ignored; production path ~/.claude/projects/ is always readable.
     try { entries = readdirSync(this.opts.rootDir); } catch { return; }
 
     for (const projDir of entries) {
@@ -67,23 +68,16 @@ export class FileWatcher {
       for (const f of files) {
         if (!f.endsWith('.jsonl')) continue;
         const fp = join(full, f);
-        let fileStat;
-        try { fileStat = statSync(fp); } catch { continue; }
+        try { statSync(fp); } catch { continue; }
 
         if (!this.tracked.has(fp)) {
           this.tracked.set(fp, {
             path: fp,
             offset: 0,
-            lastMtimeMs: fileStat.mtimeMs,
             lastActivityAt: now,
+            lineBuffer: '',
           });
           this.opts.onFileAdded(fp);
-        } else {
-          const t = this.tracked.get(fp)!;
-          if (fileStat.mtimeMs !== t.lastMtimeMs) {
-            t.lastMtimeMs = fileStat.mtimeMs;
-            t.lastActivityAt = now;
-          }
         }
       }
     }
@@ -105,6 +99,8 @@ export class FileWatcher {
     let fileStat;
     try { fileStat = statSync(t.path); } catch { return; }
     if (fileStat.size <= t.offset) return;
+    // Note: truncation (size < offset) would leave offset stale. Acceptable here because
+    // Claude Code JSONL files are append-only.
 
     const fd = openSync(t.path, 'r');
     try {
@@ -112,10 +108,11 @@ export class FileWatcher {
       const buf = Buffer.allocUnsafe(len);
       readSync(fd, buf, 0, len, t.offset);
       t.offset = fileStat.size;
-      t.lastMtimeMs = fileStat.mtimeMs;
       t.lastActivityAt = Date.now();
-      const chunk = buf.toString('utf8');
-      for (const line of chunk.split('\n')) {
+      const chunk = t.lineBuffer + buf.toString('utf8');
+      const lines = chunk.split('\n');
+      t.lineBuffer = lines.pop() ?? '';  // last element is the incomplete trailing fragment (or '' if buffer ended with \n)
+      for (const line of lines) {
         if (line.trim().length > 0) this.opts.onLine(t.path, line);
       }
     } finally {
