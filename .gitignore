@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Reference repositories (read-only, not part of this project)
+pixel-agents/
+
+# Reference assets (read-only, not part of this project)
+assets-reference/
+
+# Build artifacts and tooling
+node_modules/
+dist/
+public/assets/
+.vite/
+coverage/
+*.tsbuildinfo
