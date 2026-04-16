@@ -20,14 +20,17 @@ export class StateInferrer {
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private permissionTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly students = new Map<string, StudentId>();
-  private readonly pendingTools = new Map<string, string>(); // toolUseId → toolName
+  private readonly pendingTools = new Map<string, string>();  // toolUseId → toolName; never drained if session killed mid-tool (acceptable for Phase 1)
 
   constructor(opts: StateInferrerOptions) {
     this.opts = opts;
   }
 
   ingest(record: ParsedRecord): void {
-    this.clearTimers();
+    this.clearIdleTimer();  // any new ingest cancels pending idle ("something happened")
+    if (record.kind === 'ToolUseDetected') {
+      this.clearPermissionTimer();  // permission resets only when a new tool starts
+    }
     switch (record.kind) {
       case 'ToolUseDetected':
         this.pendingTools.set(record.toolUseId, record.toolName);
@@ -62,6 +65,7 @@ export class StateInferrer {
   private handleProgress(r: Extract<ParsedRecord, { kind: 'ProgressDetected' }>): void {
     let sid = this.students.get(r.agentId);
     if (sid === undefined) {
+      if (r.event === 'stop') return;  // ignore stop for never-seen agent (likely replay / out-of-order)
       sid = asStudentId(r.agentId);
       this.students.set(r.agentId, sid);
       this.opts.emit({
@@ -95,17 +99,17 @@ export class StateInferrer {
     });
   }
 
-  private clearTimers(): void {
-    if (this.idleTimer !== null) {
-      clearTimeout(this.idleTimer);
-      this.idleTimer = null;
-    }
-    if (this.permissionTimer !== null) {
-      clearTimeout(this.permissionTimer);
-      this.permissionTimer = null;
-    }
+  private clearIdleTimer(): void {
+    if (this.idleTimer !== null) { clearTimeout(this.idleTimer); this.idleTimer = null; }
   }
 
+  private clearPermissionTimer(): void {
+    if (this.permissionTimer !== null) { clearTimeout(this.permissionTimer); this.permissionTimer = null; }
+  }
+
+  private clearTimers(): void { this.clearIdleTimer(); this.clearPermissionTimer(); }
+
+  /** Must be called to cancel any pending timers before discarding the instance. */
   dispose(): void {
     this.clearTimers();
   }

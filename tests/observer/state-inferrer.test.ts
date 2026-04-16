@@ -42,6 +42,7 @@ describe('StateInferrer', () => {
     vi.advanceTimersByTime(5000);
     const idles = events.filter((e) => e.type === 'StateChanged' && e.state === 'idle');
     expect(idles).toHaveLength(0);
+    expect(events).toContainEqual(expect.objectContaining({ type: 'StateChanged', state: 'active' }));
   });
 
   it('non-exempt tool_result + 7s silence → permission', () => {
@@ -59,6 +60,25 @@ describe('StateInferrer', () => {
     vi.advanceTimersByTime(7000);
     const perms = events.filter((e) => e.type === 'StateChanged' && e.state === 'permission');
     expect(perms).toHaveLength(0);
+  });
+
+  it('permission timer survives unrelated ProgressDetected events', () => {
+    const inf = makeInferrer();
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', at: 0 });
+    inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_1', at: 50 });
+    // Simulate sub-agent activity while the 7s permission timer is counting down
+    inf.ingest({ kind: 'ProgressDetected', parentToolUseId: 'tu_1', agentId: 'sub_a', event: 'tool_use', at: 100 });
+    vi.advanceTimersByTime(7000);
+    expect(events).toContainEqual(expect.objectContaining({ type: 'StateChanged', state: 'permission' }));
+  });
+
+  it('stop event for unknown agent does not spawn a phantom student', () => {
+    const inf = makeInferrer();
+    inf.ingest({ kind: 'ProgressDetected', parentToolUseId: 'tu_p', agentId: 'unknown_sub', event: 'stop', at: 0 });
+    const spawns = events.filter((e) => e.type === 'StudentSpawned');
+    const despawns = events.filter((e) => e.type === 'StudentDespawned');
+    expect(spawns).toHaveLength(0);
+    expect(despawns).toHaveLength(0);
   });
 
   it('progress with new agentId → StudentSpawned; event=stop → StudentDespawned', () => {
