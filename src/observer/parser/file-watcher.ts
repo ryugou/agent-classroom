@@ -135,11 +135,32 @@ export class FileWatcher {
       }
     }
 
+    // Check historical (unemitted) files for growth at the slower scan rate.
+    // This avoids polling them at the faster tailInterval (2Hz) when they are likely idle.
+    for (const t of this.tracked.values()) {
+      if (!t.emitted) {
+        try {
+          const s = statSync(t.path);
+          if (s.size > t.offset) {
+            // File has grown — delegate to tailOne which will emit onFileAdded + read bytes.
+            this.tailOne(t);
+          }
+        } catch {
+          // File deleted before growing; unemitted → no onFileClosed
+          this.tracked.delete(t.path);
+        }
+      }
+    }
+
     this.firstScanDone = true;
   }
 
   private tailAll(): void {
-    for (const t of this.tracked.values()) this.tailOne(t);
+    // Only tail files that have already been emitted (active sessions).
+    // Historical files are checked for growth in scanOnce at the slower scan rate.
+    for (const t of this.tracked.values()) {
+      if (t.emitted) this.tailOne(t);
+    }
   }
 
   private tailOne(t: TrackedFile): void {

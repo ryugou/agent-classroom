@@ -81,6 +81,28 @@ describe('StateInferrer', () => {
     expect(despawns).toHaveLength(0);
   });
 
+  it('cancels pending permission timer when TurnDurationDetected arrives', () => {
+    const inf = makeInferrer();
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', at: 0 });
+    inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_1', at: 50 });
+    // TurnDurationDetected fires before the 7s timer
+    inf.ingest({ kind: 'TurnDurationDetected', at: 100 });
+    vi.advanceTimersByTime(10_000);
+    const permissions = events.filter((e) => e.type === 'StateChanged' && e.state === 'permission');
+    expect(permissions).toHaveLength(0);
+    expect(events).toContainEqual(expect.objectContaining({ type: 'StateChanged', state: 'idle' }));
+  });
+
+  it('cancels pending permission timer when TextOnlyAssistant arrives', () => {
+    const inf = makeInferrer();
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', at: 0 });
+    inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_1', at: 50 });
+    inf.ingest({ kind: 'TextOnlyAssistant', at: 100 });
+    vi.advanceTimersByTime(10_000);
+    const permissions = events.filter((e) => e.type === 'StateChanged' && e.state === 'permission');
+    expect(permissions).toHaveLength(0);
+  });
+
   it('progress with new agentId → StudentSpawned; event=stop → StudentDespawned', () => {
     const inf = makeInferrer();
     inf.ingest({ kind: 'ProgressDetected', parentToolUseId: 'tu_p', agentId: 'sub_a', event: 'tool_use', at: 600 });

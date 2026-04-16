@@ -28,8 +28,13 @@ export class StateInferrer {
 
   ingest(record: ParsedRecord): void {
     this.clearIdleTimer();  // any new ingest cancels pending idle ("something happened")
-    if (record.kind === 'ToolUseDetected') {
-      this.clearPermissionTimer();  // permission resets only when a new tool starts
+    // Cancel permission timer on any "definitive state change" signal:
+    // ToolUseDetected → new tool starting; TurnDurationDetected → definitive idle;
+    // TextOnlyAssistant → assistant producing text, permission should not fire.
+    if (record.kind === 'ToolUseDetected' ||
+        record.kind === 'TurnDurationDetected' ||
+        record.kind === 'TextOnlyAssistant') {
+      this.clearPermissionTimer();
     }
     switch (record.kind) {
       case 'ToolUseDetected':

@@ -62,6 +62,10 @@ export function renderClassroom(
     drawStateBadge(ctx, tx, ty, occ.teacherState);
   }
 
+  if (template.seats.length === 0) {
+    // No seats defined in this layout — skip rendering students entirely.
+    return;
+  }
   occ.students.forEach((student, i) => {
     const seat = template.seats[i % template.seats.length];
     if (!seat) return;
