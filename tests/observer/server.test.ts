@@ -6,6 +6,11 @@ import { HostSource } from '../../src/observer/sources/host-source.js';
 import { ClassroomManager } from '../../src/observer/classroom-manager.js';
 import { Broadcaster } from '../../src/observer/ws-broadcaster.js';
 import { newClassroomId } from '../../src/shared/ids.js';
+import type { LayoutTemplate } from '../../src/shared/persistence.js';
+
+const tpl: LayoutTemplate = {
+  id: 'default', cols: 10, rows: 7, tiles: Array(70).fill(1), seats: [], teacherDesk: { row: 0, col: 0 },
+};
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -23,7 +28,7 @@ describe('server integration', () => {
           classrooms: ids.map((id, i) => ({
             id, gridPos: { row: 0, col: i }, layoutTemplateId: 'default', occupant: null,
           })),
-          layoutTemplates: [{ id: 'default' }],
+          layoutTemplates: [tpl],
         },
       });
       const source = new HostSource({ rootDir: root });

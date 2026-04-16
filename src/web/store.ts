@@ -1,10 +1,11 @@
 import type { WSMessage, SchoolhouseSnapshot, ClassroomSnapshot } from '../shared/ws-messages.js';
 import type { ClassroomId } from '../shared/ids.js';
+import type { LayoutTemplate } from '../shared/persistence.js';
 
 export interface StoreState {
   gridShape: { cols: number; rows: number };
   classrooms: ClassroomSnapshot[];
-  layoutTemplates: { id: string }[];
+  layoutTemplates: LayoutTemplate[];
   toasts: { level: 'info' | 'warn' | 'error'; message: string; at: number }[];
 }
 

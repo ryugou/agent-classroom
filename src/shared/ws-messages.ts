@@ -1,5 +1,6 @@
 import type { SessionId, ClassroomId, StudentId } from './ids.js';
 import type { AgentState } from './events.js';
+import type { LayoutTemplate } from './persistence.js';
 
 export interface ClassroomSnapshot {
   id: ClassroomId;
@@ -15,7 +16,7 @@ export interface ClassroomSnapshot {
 export interface SchoolhouseSnapshot {
   gridShape: { cols: number; rows: number };
   classrooms: ClassroomSnapshot[];
-  layoutTemplates: { id: string; /* Task 16 で LayoutTemplate[] に拡張 */ }[];
+  layoutTemplates: LayoutTemplate[];
 }
 
 export type WSMessage =

@@ -1,7 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import { createStore } from '../../src/web/store.js';
 import type { WSMessage } from '../../src/shared/ws-messages.js';
+import type { LayoutTemplate } from '../../src/shared/persistence.js';
 import { newClassroomId, asSessionId, asStudentId } from '../../src/shared/ids.js';
+
+const tpl: LayoutTemplate = {
+  id: 'default',
+  cols: 10,
+  rows: 7,
+  tiles: Array(70).fill(0),
+  seats: [{ row: 2, col: 2 }],
+  teacherDesk: { row: 5, col: 4 },
+};
 
 const id0 = newClassroomId(0);
 const id1 = newClassroomId(1);
@@ -14,7 +24,7 @@ const list: WSMessage = {
       { id: id0, gridPos: { row: 0, col: 0 }, layoutTemplateId: 'default', occupant: null },
       { id: id1, gridPos: { row: 0, col: 1 }, layoutTemplateId: 'default', occupant: null },
     ],
-    layoutTemplates: [{ id: 'default' }],
+    layoutTemplates: [tpl],
   },
 };
 

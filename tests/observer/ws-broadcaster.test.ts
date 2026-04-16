@@ -20,7 +20,7 @@ describe('Broadcaster', () => {
         classrooms: ids.map((id, i) => ({
           id, gridPos: { row: 0, col: i }, layoutTemplateId: 'default', occupant: null,
         })),
-        layoutTemplates: [{ id: 'default' }],
+        layoutTemplates: [tpl],
       },
     });
     const received: WSMessage[] = [];
@@ -37,7 +37,7 @@ describe('Broadcaster', () => {
         classrooms: ids.map((id, i) => ({
           id, gridPos: { row: 0, col: i }, layoutTemplateId: 'default', occupant: null,
         })),
-        layoutTemplates: [{ id: 'default' }],
+        layoutTemplates: [tpl],
       },
     });
     const received: WSMessage[] = [];
@@ -55,7 +55,7 @@ describe('Broadcaster', () => {
       initialSnapshot: {
         gridShape: { cols: 1, rows: 1 },
         classrooms: [{ id: newClassroomId(0), gridPos: { row: 0, col: 0 }, layoutTemplateId: 'default', occupant: null }],
-        layoutTemplates: [{ id: 'default' }],
+        layoutTemplates: [tpl],
       },
     });
     const received: WSMessage[] = [];
@@ -76,7 +76,7 @@ describe('Broadcaster', () => {
         classrooms: ids.map((id, i) => ({
           id, gridPos: { row: 0, col: i }, layoutTemplateId: 'default', occupant: null,
         })),
-        layoutTemplates: [{ id: 'default' }],
+        layoutTemplates: [tpl],
       },
     });
     const received: WSMessage[] = [];
@@ -97,7 +97,7 @@ describe('Broadcaster', () => {
         classrooms: ids.map((id, i) => ({
           id, gridPos: { row: 0, col: i }, layoutTemplateId: 'default', occupant: null,
         })),
-        layoutTemplates: [{ id: 'default' }],
+        layoutTemplates: [tpl],
       },
     });
     const received: WSMessage[] = [];
@@ -125,7 +125,7 @@ describe('Broadcaster', () => {
         classrooms: ids.map((id, i) => ({
           id, gridPos: { row: 0, col: i }, layoutTemplateId: 'default', occupant: null,
         })),
-        layoutTemplates: [{ id: 'default' }],
+        layoutTemplates: [tpl],
       },
     });
     const received: WSMessage[] = [];
@@ -157,7 +157,7 @@ describe('Broadcaster', () => {
         classrooms: ids.map((id, i) => ({
           id, gridPos: { row: 0, col: i }, layoutTemplateId: 'default', occupant: null,
         })),
-        layoutTemplates: [{ id: 'default' }],
+        layoutTemplates: [tpl],
       },
     });
     const received: WSMessage[] = [];
