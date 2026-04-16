@@ -32,4 +32,14 @@ describe('resolveConfig', () => {
   it('rejects non-numeric port', () => {
     expect(() => resolveConfig({ argv: ['--port', 'xyz'], env: {} })).toThrow(/port/);
   });
+
+  it('--port flag wins over AGENT_CLASSROOM_PORT env', () => {
+    const cfg = resolveConfig({ argv: ['--port', '8000'], env: { AGENT_CLASSROOM_PORT: '9000' } });
+    expect(cfg.port).toBe(8000);
+  });
+
+  it('treats empty-string env as unset and falls back to default', () => {
+    const cfg = resolveConfig({ argv: [], env: { AGENT_CLASSROOM_PORT: '' } });
+    expect(cfg.port).toBe(6868);
+  });
 });
