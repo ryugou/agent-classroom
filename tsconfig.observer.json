@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "outDir": "./dist/observer",
+    "rootDir": "./src",
+    "types": ["node"],
+    "lib": ["ES2022"]
+  },
+  "include": ["src/shared/**/*", "src/observer/**/*"]
+}
