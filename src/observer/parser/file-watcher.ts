@@ -18,19 +18,33 @@ interface TrackedFile {
   lastActivityAt: number;
   /** incomplete line fragment waiting for its terminating newline */
   lineBuffer: string;
+  /**
+   * Whether onFileAdded has been emitted for this file.
+   * false for files that existed at first scan (historical) — onFileAdded is
+   * deferred until the file actually grows (i.e. the user resumes the session).
+   * true for files discovered after the first scan (genuinely new sessions).
+   */
+  emitted: boolean;
 }
+
+/** Max bytes read from a single file per tail cycle. Prevents event-loop blocking on large backlogs. */
+const MAX_READ_BYTES = 64 * 1024; // 64 KB per tail cycle
 
 export class FileWatcher {
   private readonly opts: Required<FileWatcherOptions>;
   private readonly tracked = new Map<string, TrackedFile>();
   private scanTimer: ReturnType<typeof setInterval> | null = null;
   private tailTimer: ReturnType<typeof setInterval> | null = null;
+  /** Set to true after the first scanOnce() completes. */
+  private firstScanDone = false;
 
   constructor(opts: FileWatcherOptions) {
     this.opts = {
       scanIntervalMs: 1000,
       tailIntervalMs: 500,
-      staleThresholdMs: 120_000,
+      // 30 minutes: heuristic for "session abandoned".
+      // Definitive session-end detection requires hooks mode (Phase 2).
+      staleThresholdMs: 30 * 60_000,
       onFileAdded: () => {},
       onFileClosed: () => {},
       ...opts,
@@ -69,13 +83,30 @@ export class FileWatcher {
         if (!f.endsWith('.jsonl')) continue;
         const fp = join(full, f);
         if (!this.tracked.has(fp)) {
-          this.tracked.set(fp, {
-            path: fp,
-            offset: 0,
-            lastActivityAt: now,
-            lineBuffer: '',
-          });
-          this.opts.onFileAdded(fp);
+          if (!this.firstScanDone) {
+            // Historical file: track with offset = current size so we only pick
+            // up *new* bytes (i.e. the user resumes this session after boot).
+            // Do NOT emit onFileAdded — avoid replaying stale transcripts.
+            let fileStat;
+            try { fileStat = statSync(fp); } catch { continue; }
+            this.tracked.set(fp, {
+              path: fp,
+              offset: fileStat.size,
+              lastActivityAt: now,
+              lineBuffer: '',
+              emitted: false,
+            });
+          } else {
+            // File appeared after boot — genuine new session; tail from the beginning.
+            this.tracked.set(fp, {
+              path: fp,
+              offset: 0,
+              lastActivityAt: now,
+              lineBuffer: '',
+              emitted: true,
+            });
+            this.opts.onFileAdded(fp);
+          }
         }
       }
     }
@@ -87,6 +118,8 @@ export class FileWatcher {
         this.opts.onFileClosed(path);
       }
     }
+
+    this.firstScanDone = true;
   }
 
   private tailAll(): void {
@@ -100,13 +133,23 @@ export class FileWatcher {
     // Note: truncation (size < offset) would leave offset stale. Acceptable here because
     // Claude Code JSONL files are append-only.
 
+    const available = fileStat.size - t.offset;
+    const readLen = Math.min(available, MAX_READ_BYTES);
+
     const fd = openSync(t.path, 'r');
     try {
-      const len = fileStat.size - t.offset;
-      const buf = Buffer.allocUnsafe(len);
-      readSync(fd, buf, 0, len, t.offset);
-      t.offset = fileStat.size;
+      const buf = Buffer.allocUnsafe(readLen);
+      readSync(fd, buf, 0, readLen, t.offset);
+      t.offset += readLen;
       t.lastActivityAt = Date.now();
+
+      // For historical files (emitted=false): first new bytes trigger onFileAdded,
+      // making this an active session from this point forward.
+      if (!t.emitted) {
+        this.opts.onFileAdded(t.path);
+        t.emitted = true;
+      }
+
       const chunk = t.lineBuffer + buf.toString('utf8');
       const lines = chunk.split('\n');
       t.lineBuffer = lines.pop() ?? '';  // last element is the incomplete trailing fragment (or '' if buffer ended with \n)

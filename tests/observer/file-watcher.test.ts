@@ -24,6 +24,7 @@ describe('FileWatcher', () => {
     });
     fw.start();
 
+    // File existed at first scan (historical). New bytes trigger tailing.
     appendFileSync(file, '{"type":"assistant","timestamp":1}\n');
     await vi.advanceTimersByTimeAsync(1500);
     expect(received.some((r) => r.line.includes('assistant'))).toBe(true);
@@ -97,11 +98,9 @@ describe('FileWatcher', () => {
     fw.stop();
   });
 
-  it('emits onFileAdded and onFileClosed callbacks', async () => {
+  it('emits onFileAdded and onFileClosed callbacks for new files created after start', async () => {
     const projectDir = join(base, 'proj');
     mkdirSync(projectDir);
-    const file = join(projectDir, 's1.jsonl');
-    writeFileSync(file, '');
 
     const added: string[] = [];
     const closed: string[] = [];
@@ -115,13 +114,89 @@ describe('FileWatcher', () => {
       staleThresholdMs: 2000,
     });
     fw.start();
+
+    // Create file AFTER start — counts as a new session, onFileAdded fires immediately at scan.
+    const file = join(projectDir, 's1.jsonl');
+    writeFileSync(file, '');
     await vi.advanceTimersByTimeAsync(1500);
     expect(added).toContain(file);
 
-    // 変更後、staleThresholdMs を超えたら closed
+    // After staleThresholdMs with no activity, onFileClosed fires.
     await vi.advanceTimersByTimeAsync(3000);
     expect(closed).toContain(file);
 
+    fw.stop();
+  });
+
+  // --- Regression tests for cold-start fix ---
+
+  it('does not emit onFileAdded for pre-existing files at first scan', async () => {
+    const projectDir = join(base, 'proj');
+    mkdirSync(projectDir);
+    const file = join(projectDir, 'historical.jsonl');
+    writeFileSync(file, '{"type":"assistant","timestamp":0}\n'.repeat(5));
+
+    const added: string[] = [];
+    const lines: string[] = [];
+    const fw = new FileWatcher({
+      rootDir: base,
+      onLine: (_p, l) => lines.push(l),
+      onFileAdded: (p) => added.push(p),
+      scanIntervalMs: 100,
+      tailIntervalMs: 50,
+    });
+    fw.start();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(added).toEqual([]);   // historical file — not emitted
+    expect(lines).toEqual([]);   // not tailed from offset 0
+    fw.stop();
+  });
+
+  it('emits onFileAdded when a historical file grows after boot', async () => {
+    const projectDir = join(base, 'proj');
+    mkdirSync(projectDir);
+    const file = join(projectDir, 'resumed.jsonl');
+    writeFileSync(file, '{"type":"assistant","timestamp":0}\n');
+
+    const added: string[] = [];
+    const lines: string[] = [];
+    const fw = new FileWatcher({
+      rootDir: base,
+      onLine: (_p, l) => lines.push(l),
+      onFileAdded: (p) => added.push(p),
+      scanIntervalMs: 100,
+      tailIntervalMs: 50,
+    });
+    fw.start();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(added).toEqual([]);   // still no emit — file hasn't grown
+
+    appendFileSync(file, '{"type":"user","timestamp":1}\n');
+    await vi.advanceTimersByTimeAsync(300);
+    expect(added).toContain(file);                              // now emitted
+    expect(lines.some((l) => l.includes('"user"'))).toBe(true); // only new bytes
+    fw.stop();
+  });
+
+  it('emits onFileAdded immediately for files created after start', async () => {
+    const projectDir = join(base, 'proj');
+    mkdirSync(projectDir);
+
+    const added: string[] = [];
+    const fw = new FileWatcher({
+      rootDir: base,
+      onLine: () => {},
+      onFileAdded: (p) => added.push(p),
+      scanIntervalMs: 100,
+      tailIntervalMs: 50,
+    });
+    fw.start();
+    await vi.advanceTimersByTimeAsync(200); // first scan complete
+
+    const file = join(projectDir, 'new-session.jsonl');
+    writeFileSync(file, '');
+    await vi.advanceTimersByTimeAsync(200);
+    expect(added).toContain(file); // post-boot file → immediate emit at scan
     fw.stop();
   });
 });

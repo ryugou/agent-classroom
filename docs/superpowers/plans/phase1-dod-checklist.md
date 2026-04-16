@@ -77,11 +77,13 @@ pnpm test
 
 ### DoD-5 (JSONL stale → TeacherLeft) について
 
-`FileWatcher` のデフォルト `staleThresholdMs` は 120,000ms。CLI からはこの値を env 経由で変更する手段がない（コンストラクタ引数のみ）。120秒待機するスモークテストは CI には不適切なため、以下のように根拠を分散：
+`FileWatcher` のデフォルト `staleThresholdMs` は **30分 (1,800,000ms)**。これは「セッションが放棄された」ことを示す経験的な閾値であり、確定的なセッション終了検出は Phase 2 の hooks モードが必要。CLI からはこの値を env 経由で変更する手段がない（コンストラクタ引数のみ）。待機するスモークテストは CI には不適切なため、以下のように根拠を分散：
 
 - `tests/observer/file-watcher.test.ts` — `vi.useFakeTimers()` で時間を進め、stale 検出ロジックを直接検証
 - `tests/observer/host-source.test.ts` — `staleThresholdMs: 500` を指定した HostSource で SessionEnded 発火を確認
 - `tests/observer/ws-broadcaster.test.ts` — `TeacherLeft` WS メッセージへの変換を確認
+
+**注意 (cold-start 挙動):** observer 起動時に既存の `.jsonl` ファイルが存在しても、それらは「過去のセッション」として扱われ再生されない。`onFileAdded` はファイルが実際に成長した時点で初めて発火する。これにより、boot 時に大量の ghost セッションが UI に表示される問題 (Critical 1) と、アクティブなアイドルセッションが誤って stale 判定される問題 (Critical 2) を解消している。
 
 ### DoD-4 (StudentEntered) について
 
