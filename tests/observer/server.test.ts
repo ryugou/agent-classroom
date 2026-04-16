@@ -34,7 +34,7 @@ describe('server integration', () => {
       const source = new HostSource({ rootDir: root });
       source.on((e) => broadcaster.ingest(e));
 
-      const srv = createServer({ staticDir: root, broadcaster, source, port: 0 });
+      const srv = createServer({ staticDir: root, broadcaster, source, port: 0, host: '127.0.0.1' });
       await srv.start();
 
       const port = (srv.address() as AddressInfo).port;

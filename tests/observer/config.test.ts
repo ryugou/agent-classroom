@@ -42,4 +42,19 @@ describe('resolveConfig', () => {
     const cfg = resolveConfig({ argv: [], env: { AGENT_CLASSROOM_PORT: '' } });
     expect(cfg.port).toBe(6868);
   });
+
+  it('defaults host to 127.0.0.1', () => {
+    const cfg = resolveConfig({ argv: [], env: {} });
+    expect(cfg.host).toBe('127.0.0.1');
+  });
+
+  it('overrides host via --host', () => {
+    const cfg = resolveConfig({ argv: ['--host', '0.0.0.0'], env: {} });
+    expect(cfg.host).toBe('0.0.0.0');
+  });
+
+  it('AGENT_CLASSROOM_HOST env wins when --host absent', () => {
+    const cfg = resolveConfig({ argv: [], env: { AGENT_CLASSROOM_HOST: '192.168.1.10' } });
+    expect(cfg.host).toBe('192.168.1.10');
+  });
 });

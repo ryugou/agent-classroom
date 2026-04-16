@@ -26,7 +26,7 @@ const DEFAULT_TEMPLATE: LayoutTemplate = {
 export async function main(argv: string[], env: NodeJS.ProcessEnv): Promise<number> {
   const [command, ...rest] = argv;
   if (command !== 'start') {
-    process.stderr.write('Usage: agent-classroom start [--port N] [--classrooms N]\n');
+    process.stderr.write('Usage: agent-classroom start [--port N] [--classrooms N] [--host ADDRESS]\n');
     return 2;
   }
 
@@ -64,7 +64,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv): Promise<numb
   ];
   const staticDir = candidates.find((p) => existsSync(join(p, 'index.html'))) ?? candidates[0]!;
 
-  const server = createServer({ staticDir, broadcaster, source, port: config.port });
+  const server = createServer({ staticDir, broadcaster, source, port: config.port, host: config.host });
   try {
     await server.start();
   } catch (err) {

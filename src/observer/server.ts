@@ -12,6 +12,7 @@ export interface CreateServerOptions {
   broadcaster: Broadcaster;
   source: SourceAdapter;
   port: number;
+  host: string;
 }
 
 export function createServer(opts: CreateServerOptions) {
@@ -32,10 +33,10 @@ export function createServer(opts: CreateServerOptions) {
     async start(): Promise<void> {
       await new Promise<void>((resolve, reject) => {
         http.once('error', reject);
-        http.listen(opts.port, () => { http.off('error', reject); resolve(); });
+        http.listen(opts.port, opts.host, () => { http.off('error', reject); resolve(); });
       });
       opts.source.start();
-      logger.info('observer started', { port: (http.address() as AddressInfo).port });
+      logger.info('observer started', { host: opts.host, port: (http.address() as AddressInfo).port });
     },
     async stop(): Promise<void> {
       opts.source.stop();

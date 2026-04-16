@@ -24,6 +24,7 @@ export interface SchoolhousePersistence {
 
 export interface Config {
   port: number;
+  host: string;                  // bind address (default: '127.0.0.1')
   classroomCount: number;        // 初期 N
   gridShape: { cols: number; rows: number };  // default: cols=3, rows=ceil(N/3)
   claudeProjectsDir: string;     // default: ~/.claude/projects

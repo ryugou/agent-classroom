@@ -8,16 +8,19 @@ export interface ResolveInput {
 }
 
 const DEFAULT_PORT = 6868;
+const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_CLASSROOMS = 4;
 const DEFAULT_GRID_COLS = 3;
 
 export function resolveConfig({ argv, env }: ResolveInput): Config {
   const port = parseIntOr(readFlag(argv, '--port') ?? env.AGENT_CLASSROOM_PORT, DEFAULT_PORT, 'port');
+  const host = (readFlag(argv, '--host') ?? env.AGENT_CLASSROOM_HOST ?? '').trim() || DEFAULT_HOST;
   const classroomCount = parseIntOr(readFlag(argv, '--classrooms') ?? env.AGENT_CLASSROOM_CLASSROOMS, DEFAULT_CLASSROOMS, 'classrooms');
   const gridCols = parseIntOr(readFlag(argv, '--grid-cols') ?? env.AGENT_CLASSROOM_GRID_COLS, DEFAULT_GRID_COLS, 'grid-cols');
 
   return {
     port,
+    host,
     classroomCount,
     gridShape: { cols: gridCols, rows: Math.ceil(classroomCount / gridCols) },
     claudeProjectsDir: valueOrDefault(env.AGENT_CLASSROOM_CLAUDE_DIR, join(homedir(), '.claude', 'projects')),
