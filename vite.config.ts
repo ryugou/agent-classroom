@@ -1,17 +1,20 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 
+const rootDir = fileURLToPath(new URL('.', import.meta.url));
+
 export default defineConfig({
-  root: resolve(__dirname, 'src/web'),
+  root: resolve(rootDir, 'src/web'),
   plugins: [react()],
   resolve: {
     alias: {
-      '@shared': resolve(__dirname, 'src/shared'),
+      '@shared': resolve(rootDir, 'src/shared'),
     },
   },
   build: {
-    outDir: resolve(__dirname, 'dist/web'),
+    outDir: resolve(rootDir, 'dist/web'),
     emptyOutDir: true,
   },
   server: {

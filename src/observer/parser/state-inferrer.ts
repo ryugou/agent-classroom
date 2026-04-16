@@ -51,6 +51,7 @@ export class StateInferrer {
         );
         break;
       case 'ToolResultDetected': {
+        this.clearPermissionTimer();
         const toolName = this.pendingTools.get(record.toolUseId);
         this.pendingTools.delete(record.toolUseId);
         if (toolName !== undefined && !EXEMPT_TOOLS.has(toolName)) {

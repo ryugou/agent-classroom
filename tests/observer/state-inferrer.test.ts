@@ -110,4 +110,33 @@ describe('StateInferrer', () => {
     expect(events).toContainEqual(expect.objectContaining({ type: 'StudentSpawned' }));
     expect(events).toContainEqual(expect.objectContaining({ type: 'StudentDespawned' }));
   });
+
+  it('cancels pending permission timer when a new ToolResultDetected arrives', () => {
+    const inf = makeInferrer();
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', at: 0 });
+    inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_1', at: 50 });
+    // Second non-exempt tool before the 7s timer fires
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_2', toolName: 'Edit', at: 1000 });
+    inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_2', at: 1050 });
+    vi.advanceTimersByTime(6500);
+    // The first timer (tu_1) would have fired at 7000ms had it not been cancelled
+    // Only one permission should ever fire — from tu_2's timer
+    const permissions = events.filter((e) => e.type === 'StateChanged' && e.state === 'permission');
+    expect(permissions).toHaveLength(0);
+    vi.advanceTimersByTime(1000);  // total elapsed from tu_2 = 7500
+    const permissionsAfter = events.filter((e) => e.type === 'StateChanged' && e.state === 'permission');
+    expect(permissionsAfter).toHaveLength(1);
+  });
+
+  it('cancels pending permission timer when an exempt ToolResultDetected arrives', () => {
+    const inf = makeInferrer();
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', at: 0 });
+    inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_1', at: 50 });
+    // Exempt tool's result should cancel the pending non-exempt permission timer
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_2', toolName: 'Read', at: 1000 });
+    inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_2', at: 1050 });
+    vi.advanceTimersByTime(10_000);
+    const permissions = events.filter((e) => e.type === 'StateChanged' && e.state === 'permission');
+    expect(permissions).toHaveLength(0);
+  });
 });
