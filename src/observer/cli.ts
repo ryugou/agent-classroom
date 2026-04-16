@@ -51,6 +51,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv): Promise<numb
       layoutTemplateId: c.layoutTemplateId,
       occupant: null,
     })),
+    // Task 16: wire full LayoutTemplate in snapshot (currently stripped to { id } only)
     layoutTemplates: persisted.layoutTemplates.map((t) => ({ id: t.id })),
   };
   const broadcaster = new Broadcaster({ manager, initialSnapshot });

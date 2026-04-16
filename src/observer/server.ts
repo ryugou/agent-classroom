@@ -39,6 +39,7 @@ export function createServer(opts: CreateServerOptions) {
     },
     async stop(): Promise<void> {
       opts.source.stop();
+      for (const client of wss.clients) client.terminate();
       wss.close();
       await new Promise<void>((resolve) => http.close(() => resolve()));
     },
