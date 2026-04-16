@@ -54,4 +54,22 @@ describe('ClassroomManager', () => {
     expect(mgr.occupantOf(ids[0])).toBe('s1');
     expect(mgr.occupantOf(ids[1])).toBeNull();
   });
+
+  it('classroomOf returns assigned id and null for unknown', () => {
+    const mgr = new ClassroomManager(ids);
+    mgr.assign(asSessionId('s1'));
+    expect(mgr.classroomOf(asSessionId('s1'))).toBe(ids[0]);
+    expect(mgr.classroomOf(asSessionId('s_unknown'))).toBeNull();
+  });
+
+  it('constructor throws on empty classroom list', () => {
+    expect(() => new ClassroomManager([])).toThrow(/empty/);
+  });
+
+  it('release returns classroom id for known session, null for unknown', () => {
+    const mgr = new ClassroomManager(ids);
+    mgr.assign(asSessionId('s1'));
+    expect(mgr.release(asSessionId('s1'))).toBe(ids[0]);
+    expect(mgr.release(asSessionId('unknown'))).toBeNull();
+  });
 });
