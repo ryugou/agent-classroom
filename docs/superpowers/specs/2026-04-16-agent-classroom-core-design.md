@@ -32,9 +32,18 @@
 | 教師 (teacher) | Claude Code セッションの main agent | 教室ごとに 0 または 1 | session と同じ寿命 |
 | 生徒 (student) | Task tool で起動された sub-agent | 教室ごとに 0..M | sub-agent と同じ寿命 |
 
+**教師と生徒を区別する根拠**:
+
+main と sub-agent は次の 3 点で性質が異なるため、メタファーと実装モデルの両方で区別を持ち込む:
+
+- **カーディナリティ**: 教師 = 1 per 教室 / 生徒 = 0..M
+- **ライフタイム**: 教師 = session と同寿命 / 生徒 = sub-agent ごとに一時的 (session より短い)
+- **役割**: 教師 = 教室の anchor (session 存在の可視表現) / 生徒 = 出入りする存在
+
+この区別を最初から持ち込むことで、永続化・描画・状態モデルで両者の混同を起こさないようにする。`docs/design.md` §2.1 時点ではどちらも「生徒」扱いだったのを本ドキュメントで修正。
+
 **ポイント**:
 - 教室は永続的に N 個存在する pool。session が来たら空き教室に "居候" する形で入る。
-- 教師と生徒の違いは明示的 (design.md 時点ではどちらも「生徒」扱いだったのを修正)。
 
 ### 2.2 教室の性質
 
@@ -47,9 +56,10 @@
 
 - **起動検知**: observer が host `~/.claude/projects/` を watch、新しい `.jsonl` 出現で session start を認識。
 - **アサイン**: 最小 ID の空き教室に自動アサイン (= α ルール)。silent auto。
-- **入室演出**: ブラウザが開いていれば軽微な可視化 (キャラが歩いて着席、もしくは "N 号教室にアサイン" トースト)。ブラウザが開いていない場合は影響なし (次回閲覧時にはすでに入室済み)。
+- **入室演出**: ブラウザが開いていれば軽微な可視化 (キャラが歩いて着席、もしくは "N 号教室にアサイン" トースト)。ブラウザが開いていない場合は影響なし (observer は session 状態を常時保持しているため、次回ブラウザ接続時に現時点の snapshot を受け取れる。切断中の過去イベントは replay しない)。
 - **アクティビティ**: session 内で Task tool が起動すれば sub-agent が「生徒」として該当教室に追加表示。
 - **終了**: session end で教師・生徒が退場、教室は空に戻る (教室自体は消えない)。退場アニメは最小限。
+- **溢れ時の挙動**: 全 N 教室が埋まっている状態で新規 session が来た場合、その session は教室にアサインされず、observer ログと `Toast` メッセージ (例: "教室が全て埋まっています。config で N を増やして再起動してください") で通知する。session 自体は JSONL が観測され続けるが画面には表示されない。config で N を増やして observer を再起動すれば、再起動後の該当 session (既存 or 新規) は通常通り空き教室に入る。
 
 ### 2.4 観測対象 (ソース)
 
@@ -88,7 +98,12 @@ parser + infer 層が出力するイベント種別の schema を固定:
 - `StudentDespawned` (sub-agent の完了)
 - `StateChanged` (active / idle / permission / etc)
 
-Phase 1 で実際に発火させるイベントは最小限 (SessionStarted/Ended + active/idle の StateChanged) だが、schema は最終形態前提で定義。
+Phase 1 で発火させるイベント:
+- `SessionStarted` / `SessionEnded`
+- `StudentSpawned` / `StudentDespawned`
+- `StateChanged` (state 値は pixel-agents heuristic mode 相当: **active / idle / permission** の 3 種)
+
+Hooks mode 由来の definitive な state (e.g. definitive permission) は Phase 1 範囲外。heuristic のみで実装し、misfire を伴うことを許容する。schema 側では state 値を文字列 enum として拡張可能にしておき、最終形態 (hooks 併用) で値が増えても破壊的変更にならないようにする。
 
 ### 3.3 WebSocket message schema
 
@@ -101,6 +116,10 @@ observer ↔ browser の message type を固定:
 - `Toast` (アサイン通知など)
 
 source (host / VibePod / 他) が増えても message type は増やさない。
+
+**同期モデル**: 新規 WS 接続時に observer が現時点の snapshot (全教室と在室中の教師・生徒) を 1 回送信。以降は delta イベント (TeacherEntered 等) を broadcast。切断中の event は replay せず、再接続時の snapshot で状態を合わせる。この方針により observer 側は過去 event history を保持する必要がない。
+
+**多重接続**: observer は複数 WebSocket 接続を並行して受け付け、snapshot/delta を全接続に broadcast する。Phase 1 では browser → observer 方向の状態変更イベントは存在しない (教室 rearrange 等の書き込み系操作は Phase 2 以降) ため、read-only 多重接続として自然に成立する。複数タブ・複数デバイスからアクセスしても常に同じ見た目が同期される。書き込み系操作が追加された時点で衝突解決モデルを再設計する (§5 参照)。
 
 ### 3.4 識別子の分離
 
@@ -144,15 +163,16 @@ observer / browser の双方で `classrooms[]` の配列として扱う。1 教�
 - observer プロセス (Node + TypeScript、UI host は Node HTTP + WebSocket。`docs/design.md` §4.1 の「UI 描画層の差し替え方針」を踏襲)
   - host 用 source adapter のみ実装 (`~/.claude/projects/` の polling 500ms)
   - JSONL parser (pixel-agents `transcriptParser.ts` の設計を参考、実装は独自)
-  - 状態推論 (pixel-agents の heuristic 相当: tool_use で active / turn_duration or idle タイマーで idle)
+  - 状態推論 (pixel-agents の heuristic mode 相当: active = tool_use 検出 / idle = turn_duration もしくは 5s タイマー / permission = 非 exempt tool 後 7s タイマー)
   - HTTP + WebSocket server
 - 起動時に config N (default 4 など) で教室を生成、`~/.agent-classroom/` に layout 永続化・再起動で復元
 - session start → α ルールで空き教室にアサイン、軽微な入室可視化
 - session end → 教室を空に戻す
 - main agent (教師) 1 + sub-agent (生徒) 0..M の表示
-- 状態語彙は pixel-agents 相当 (active / idle / permission 等)
+- 状態語彙は pixel-agents heuristic mode 相当 (active / idle / permission の 3 種)、hooks 由来 state の追加は Phase 2 以降
 - ブラウザ UI (Canvas 2D + React) で N 教室を grid 配置、画面溢れたらスクロール
 - 素材: Cool School tileset + Kenney Tiny Dungeon 7 体 (`docs/assets-reference.md` 採用確定プラン準拠)
+- CLI コマンドで observer を起動 (コマンド名は実装時に確定、例: `agent-classroom start`)。config で port 指定可。2 回目起動は port-bind 失敗で exit + エラーメッセージ (既存 instance 検出や自動 takeover は実装しない、1 マシン = 1 校舎 前提)
 
 ### 4.2 含まないもの (Phase 2 以降)
 
@@ -163,18 +183,20 @@ observer / browser の双方で `classrooms[]` の配列として扱う。1 教�
 - 履歴 / session log 画面 (未定)
 - 教室ごとに異なる layout template (将来改修候補)
 - 教室 layout の UI 編集 (最終形態にも含めない)
+- Hooks mode (definitive permission 等) の実装 (pixel-agents `server/` 相当、Phase 2 以降)
 
 ### 4.3 Phase 1 Definition of Done
 
 以下が満たされれば Phase 1 完了:
 
-1. macOS/Linux で observer を CLI から手動起動できる (常駐化 = launchd / systemd 対応は Phase 2 以降の論点)
+1. macOS/Linux で observer を CLI コマンドから手動起動でき、ブラウザからアクセス可能になる (常駐化 = launchd / systemd 対応は Phase 2 以降)
 2. ブラウザでローカル URL を開くと config N 個の教室が grid 表示される
 3. ターミナルで Claude Code を起動すると、`~/.claude/projects/` の JSONL 出現を検知し、最小 ID の空き教室に教師が入室する演出が出る
 4. Task tool で sub-agent が発火すると、その教室に生徒が表示される
 5. session 終了で教師と生徒が退場、教室は空に戻る
 6. observer 再起動後、layout が復元される (教室数・grid 位置が同じ)
 7. Claude Code を 2 つ以上並行で起動した際、2 つ以上の教室に並行表示される
+8. N 教室が全て埋まっている状態で (N+1) 番目の Claude Code を起動した場合、画面表示は変わらず、observer log と Toast で「教室が埋まっている」旨が通知される
 
 ---
 
@@ -187,8 +209,11 @@ observer / browser の双方で `classrooms[]` の配列として扱う。1 教�
 - VibePod 側観測データ出力経路 (bind mount か Hooks 注入か)
 - session 履歴の永続化範囲 (log をどこまで残すか、UI で見せるか)
 - 教室ごとに異なる layout template を許すか (将来改修候補)
-- 状態語彙の拡張 (pixel-agents 相当を超えて agent-classroom 独自の状態を追加するか)
+- Hooks mode による definitive な状態検出の導入 (permission, session lifecycle 等)。pixel-agents `hookEventHandler.ts` 相当の実装が必要
+- 状態語彙の拡張 (pixel-agents heuristic 相当を超えて agent-classroom 独自の状態を追加するか)
 - サイズ差問題 (タイル 48×48 vs キャラ 16×16) の最終解 (`docs/assets-reference.md` §残る課題 参照、Phase 1 実装時に並べて決める)
+- 複数ブラウザ接続時の書き込み競合解決 (教室 rearrange 等の書き込み系操作が Phase 2 以降で入ったタイミングで再設計)
+- 複数校舎 (意図的に別ポートで複数 observer を走らせる用途) の是非。現時点では 1 マシン = 1 校舎を前提とし、必要性が出た段階で再検討
 
 ---
 
