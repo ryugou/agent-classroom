@@ -112,5 +112,7 @@ export class StateInferrer {
   /** Must be called to cancel any pending timers before discarding the instance. */
   dispose(): void {
     this.clearTimers();
+    this.pendingTools.clear();
+    this.students.clear();
   }
 }

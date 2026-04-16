@@ -68,8 +68,6 @@ export class FileWatcher {
       for (const f of files) {
         if (!f.endsWith('.jsonl')) continue;
         const fp = join(full, f);
-        try { statSync(fp); } catch { continue; }
-
         if (!this.tracked.has(fp)) {
           this.tracked.set(fp, {
             path: fp,

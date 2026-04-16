@@ -1,4 +1,3 @@
-// src/web/canvas/renderer.ts
 import type { ClassroomSnapshot } from '../../shared/ws-messages.js';
 import type { LayoutTemplate } from '../../shared/persistence.js';
 import type { AgentState } from '../../shared/events.js';

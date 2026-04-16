@@ -22,8 +22,11 @@ export function createStore(): Store {
   const subs = new Set<() => void>();
 
   const update = (next: StoreState) => { state = next; for (const fn of subs) fn(); };
-  const patchClassroom = (id: ClassroomId, patch: (c: ClassroomSnapshot) => ClassroomSnapshot) =>
-    update({ ...state, classrooms: state.classrooms.map((c) => (c.id === id ? patch(c) : c)) });
+  const patchClassroom = (id: ClassroomId, patch: (c: ClassroomSnapshot) => ClassroomSnapshot) => {
+    const nextClassrooms = state.classrooms.map((c) => (c.id === id ? patch(c) : c));
+    if (nextClassrooms.every((c, i) => c === state.classrooms[i])) return;
+    update({ ...state, classrooms: nextClassrooms });
+  };
 
   const apply = (msg: WSMessage): void => {
     switch (msg.type) {

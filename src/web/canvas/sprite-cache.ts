@@ -1,4 +1,3 @@
-// src/web/canvas/sprite-cache.ts
 export class SpriteCache {
   private readonly cache = new Map<string, HTMLImageElement>();
   private readonly promises = new Map<string, Promise<HTMLImageElement>>();
