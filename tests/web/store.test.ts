@@ -65,4 +65,21 @@ describe('store', () => {
     s.apply({ type: 'Toast', level: 'warn', message: 'full' });
     expect(s.getState().toasts.at(-1)?.message).toBe('full');
   });
+
+  it('TeacherLeft ignores stale sessionId and does not evict current occupant', () => {
+    const s = createStore();
+    s.apply(list);
+    s.apply({ type: 'TeacherEntered', classroomId: id0, sessionId: asSessionId('current'), cwd: '' });
+    // Late/stale TeacherLeft for a previous session
+    s.apply({ type: 'TeacherLeft', classroomId: id0, sessionId: asSessionId('stale') });
+    expect(s.getState().classrooms[0]!.occupant?.sessionId).toBe('current');
+  });
+
+  it('TeacherLeft with matching sessionId clears occupant', () => {
+    const s = createStore();
+    s.apply(list);
+    s.apply({ type: 'TeacherEntered', classroomId: id0, sessionId: asSessionId('current'), cwd: '' });
+    s.apply({ type: 'TeacherLeft', classroomId: id0, sessionId: asSessionId('current') });
+    expect(s.getState().classrooms[0]!.occupant).toBeNull();
+  });
 });

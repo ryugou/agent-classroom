@@ -8,7 +8,7 @@ export interface StoreState {
   toasts: { level: 'info' | 'warn' | 'error'; message: string; at: number }[];
 }
 
-const EMPTY: StoreState = { gridShape: { cols: 0, rows: 0 }, classrooms: [], layoutTemplates: [], toasts: [] };
+const EMPTY: StoreState = Object.freeze({ gridShape: { cols: 0, rows: 0 }, classrooms: [], layoutTemplates: [], toasts: [] }) as StoreState;
 
 export interface Store {
   getState(): StoreState;
@@ -28,7 +28,9 @@ export function createStore(): Store {
     switch (msg.type) {
       case 'ClassroomList': {
         const s: SchoolhouseSnapshot = msg.snapshot;
-        update({ gridShape: s.gridShape, classrooms: s.classrooms, layoutTemplates: s.layoutTemplates, toasts: state.toasts });
+        update({ gridShape: s.gridShape, classrooms: s.classrooms, layoutTemplates: s.layoutTemplates,
+          // preserve toasts across reconnect so the user still sees recent warnings
+          toasts: state.toasts });
         break;
       }
       case 'ClassroomUpdate':
@@ -41,7 +43,10 @@ export function createStore(): Store {
         }));
         break;
       case 'TeacherLeft':
-        patchClassroom(msg.classroomId, (c) => ({ ...c, occupant: null }));
+        patchClassroom(msg.classroomId, (c) => {
+          if (c.occupant?.sessionId !== msg.sessionId) return c;  // ignore stale leave
+          return { ...c, occupant: null };
+        });
         break;
       case 'StudentEntered':
         patchClassroom(msg.classroomId, (c) => {
@@ -70,7 +75,8 @@ export function createStore(): Store {
         });
         break;
       case 'Toast':
-        update({ ...state, toasts: [...state.toasts, { level: msg.level, message: msg.message, at: Date.now() }].slice(-5) });
+        update({ ...state, toasts: [...state.toasts, { level: msg.level, message: msg.message, at: Date.now() }]
+          .slice(-5) });  // keep only the 5 most recent
         break;
     }
   };
