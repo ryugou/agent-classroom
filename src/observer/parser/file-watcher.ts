@@ -135,8 +135,10 @@ export class FileWatcher {
       }
     }
 
-    // Check historical (unemitted) files for growth at the slower scan rate.
-    // This avoids polling them at the faster tailInterval (2Hz) when they are likely idle.
+    // Historical files (emitted=false) are checked for growth at scanIntervalMs (1Hz),
+    // not at the 2Hz tailIntervalMs hot path. This is O(unemitted_count) per scan.
+    // Phase 2 should cap by mtime window (e.g., only recently-modified files) if this
+    // becomes an issue for users with many historical transcripts.
     for (const t of this.tracked.values()) {
       if (!t.emitted) {
         try {

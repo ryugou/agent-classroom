@@ -11,7 +11,10 @@ export function App() {
   const [state, setState] = useState<StoreState>(store.getState());
   const [preloaded, setPreloaded] = useState(false);
 
-  useEffect(() => store.subscribe(() => setState(store.getState())), [store]);
+  useEffect(() => {
+    const unsubscribe = store.subscribe(() => setState(store.getState()));
+    return unsubscribe;
+  }, [store]);
 
   useEffect(() => {
     const disconnect = connect(store);
