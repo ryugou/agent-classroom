@@ -73,7 +73,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv): Promise<numb
     })),
     layoutTemplates: persisted.layoutTemplates,
   };
-  const broadcaster = new Broadcaster({ manager, initialSnapshot });
+  const broadcaster = new Broadcaster({ manager, initialSnapshot, layoutFilePath: join(config.stateDir, 'layout.json') });
   const source = new HostSource({ rootDir: config.claudeProjectsDir, staleThresholdMs: config.staleThresholdMs });
   source.on((e) => broadcaster.ingest(e));
 
@@ -82,7 +82,13 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv): Promise<numb
     resolve(here, '../../web'),          // dist/web next to dist/observer
     resolve(here, '../../../dist/web'),  // fallback
   ];
-  const staticDir = candidates.find((p) => existsSync(join(p, 'index.html'))) ?? candidates[0]!;
+  const staticDir = candidates.find((p) => existsSync(join(p, 'index.html')));
+  if (!staticDir) {
+    const msg = `observer web assets not found: expected index.html in one of ${candidates.join(', ')}. Run \`pnpm run build\` and try again.`;
+    logger.error('failed to locate observer web assets', { candidates, hint: 'run `pnpm run build`' });
+    process.stderr.write(msg + '\n');
+    return 1;
+  }
 
   const server = createServer({ staticDir, broadcaster, source, port: config.port, host: config.host });
   try {

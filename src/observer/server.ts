@@ -1,6 +1,6 @@
 import express from 'express';
 import { createServer as createHttp, type Server as HttpServer } from 'node:http';
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
 import type { AddressInfo } from 'node:net';
 import type { Broadcaster } from './ws-broadcaster.js';
 import type { SourceAdapter } from './sources/adapter.js';
@@ -23,7 +23,7 @@ export function createServer(opts: CreateServerOptions) {
   const wss = new WebSocketServer({ server: http, path: '/ws' });
   wss.on('connection', (socket) => {
     const unsub = opts.broadcaster.subscribe((msg: WSMessage) => {
-      if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(msg));
+      if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(msg));
     });
     socket.on('close', unsub);
     socket.on('error', (err) => logger.warn('ws socket error', { err: String(err) }));

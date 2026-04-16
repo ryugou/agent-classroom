@@ -6,16 +6,19 @@ import type { ClassroomId } from '../shared/ids.js';
 export interface BroadcasterOptions {
   manager: ClassroomManager;
   initialSnapshot: SchoolhouseSnapshot;
+  layoutFilePath: string;  // actual resolved path for user-facing messages
 }
 
 export class Broadcaster {
   private snapshot: SchoolhouseSnapshot;
   private readonly manager: ClassroomManager;
+  private readonly layoutFilePath: string;
   private subs: ((msg: WSMessage) => void)[] = [];
 
   constructor(opts: BroadcasterOptions) {
     this.manager = opts.manager;
     this.snapshot = opts.initialSnapshot;
+    this.layoutFilePath = opts.layoutFilePath;
   }
 
   subscribe(fn: (msg: WSMessage) => void): () => void {
@@ -29,7 +32,7 @@ export class Broadcaster {
       case 'SessionStarted': {
         const res = this.manager.assign(ev.sessionId);
         if (!res.ok) {
-          this.broadcast({ type: 'Toast', level: 'warn', message: `教室が全て埋まっています (session=${ev.sessionId})。--classrooms を増やして再起動するか、~/.agent-classroom/layout.json を削除して再初期化してください。` });
+          this.broadcast({ type: 'Toast', level: 'warn', message: `教室が全て埋まっています (session=${ev.sessionId})。--classrooms を増やして再起動するか、${this.layoutFilePath} を削除して再初期化してください。` });
           return;
         }
         const existing = this.snapshot.classrooms.find((c) => c.id === res.classroomId);

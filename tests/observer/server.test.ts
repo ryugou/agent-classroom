@@ -23,6 +23,7 @@ describe('server integration', () => {
       const manager = new ClassroomManager(ids);
       const broadcaster = new Broadcaster({
         manager,
+        layoutFilePath: '/tmp/test-layout.json',
         initialSnapshot: {
           gridShape: { cols: 2, rows: 1 },
           classrooms: ids.map((id, i) => ({

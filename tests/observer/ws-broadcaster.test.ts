@@ -15,6 +15,7 @@ describe('Broadcaster', () => {
     const mgr = new ClassroomManager(ids);
     const b = new Broadcaster({
       manager: mgr,
+      layoutFilePath: '/tmp/test-layout.json',
       initialSnapshot: {
         gridShape: { cols: 2, rows: 1 },
         classrooms: ids.map((id, i) => ({
@@ -32,6 +33,7 @@ describe('Broadcaster', () => {
     const mgr = new ClassroomManager(ids);
     const b = new Broadcaster({
       manager: mgr,
+      layoutFilePath: '/tmp/test-layout.json',
       initialSnapshot: {
         gridShape: { cols: 2, rows: 1 },
         classrooms: ids.map((id, i) => ({
@@ -52,6 +54,7 @@ describe('Broadcaster', () => {
     const mgr = new ClassroomManager([newClassroomId(0)]);  // N=1
     const b = new Broadcaster({
       manager: mgr,
+      layoutFilePath: '/tmp/test-layout.json',
       initialSnapshot: {
         gridShape: { cols: 1, rows: 1 },
         classrooms: [{ id: newClassroomId(0), gridPos: { row: 0, col: 0 }, layoutTemplateId: 'default', occupant: null }],
@@ -71,6 +74,7 @@ describe('Broadcaster', () => {
     const mgr = new ClassroomManager(ids);
     const b = new Broadcaster({
       manager: mgr,
+      layoutFilePath: '/tmp/test-layout.json',
       initialSnapshot: {
         gridShape: { cols: 2, rows: 1 },
         classrooms: ids.map((id, i) => ({
@@ -92,6 +96,7 @@ describe('Broadcaster', () => {
     const mgr = new ClassroomManager(ids);
     const b = new Broadcaster({
       manager: mgr,
+      layoutFilePath: '/tmp/test-layout.json',
       initialSnapshot: {
         gridShape: { cols: 2, rows: 1 },
         classrooms: ids.map((id, i) => ({
@@ -120,6 +125,7 @@ describe('Broadcaster', () => {
     const mgr = new ClassroomManager(ids);
     const b = new Broadcaster({
       manager: mgr,
+      layoutFilePath: '/tmp/test-layout.json',
       initialSnapshot: {
         gridShape: { cols: 2, rows: 1 },
         classrooms: ids.map((id, i) => ({
@@ -152,6 +158,7 @@ describe('Broadcaster', () => {
     const mgr = new ClassroomManager(ids);
     const b = new Broadcaster({
       manager: mgr,
+      layoutFilePath: '/tmp/test-layout.json',
       initialSnapshot: {
         gridShape: { cols: 2, rows: 1 },
         classrooms: ids.map((id, i) => ({
