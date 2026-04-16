@@ -7,7 +7,8 @@ import { renderClassroom } from '../canvas/renderer.js';
 
 interface Props {
   classroom: ClassroomSnapshot;
-  templates: { id: string }[];
+  templates: { id: string }[];  // scaffolded for Task 16 (currently unused; full LayoutTemplate wire-up)
+  preloaded: boolean;
   style?: CSSProperties;
 }
 
@@ -24,7 +25,7 @@ const FALLBACK_TEMPLATE: LayoutTemplate = {
   teacherDesk: { row: 5, col: 4 },
 };
 
-export function Classroom({ classroom, style }: Props) {
+export function Classroom({ classroom, preloaded, style }: Props) {
   const ref = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -34,7 +35,7 @@ export function Classroom({ classroom, style }: Props) {
     if (!ctx) return;
     ctx.imageSmoothingEnabled = false;
     renderClassroom(ctx, FALLBACK_TEMPLATE, classroom);
-  }, [classroom]);
+  }, [classroom, preloaded]);  // re-render after sprites load
 
   return (
     <section className="classroom" style={style}>
