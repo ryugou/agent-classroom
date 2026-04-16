@@ -1,0 +1,112 @@
+import type { SessionId, StudentId } from '../../shared/ids.js';
+import { asStudentId } from '../../shared/ids.js';
+import type { ObservationEvent, AgentState } from '../../shared/events.js';
+import type { ParsedRecord } from './transcript-parser.js';
+
+const EXEMPT_TOOLS = new Set(['Read', 'Glob', 'Grep', 'WebFetch', 'LS', 'TodoWrite']);
+const IDLE_TIMEOUT_MS = 5000;
+const PERMISSION_TIMEOUT_MS = 7000;
+
+export interface StateInferrerOptions {
+  sessionId: SessionId;
+  emit: (event: ObservationEvent) => void;
+  now: () => number;
+}
+
+export class StateInferrer {
+  private readonly opts: StateInferrerOptions;
+  // null initial state ensures the first setState call always emits (never skipped by dedup guard)
+  private lastState: AgentState | null = null;
+  private idleTimer: ReturnType<typeof setTimeout> | null = null;
+  private permissionTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly students = new Map<string, StudentId>();
+  private readonly pendingTools = new Map<string, string>(); // toolUseId → toolName
+
+  constructor(opts: StateInferrerOptions) {
+    this.opts = opts;
+  }
+
+  ingest(record: ParsedRecord): void {
+    this.clearTimers();
+    switch (record.kind) {
+      case 'ToolUseDetected':
+        this.pendingTools.set(record.toolUseId, record.toolName);
+        this.setState('active', record.at);
+        break;
+      case 'TurnDurationDetected':
+        this.setState('idle', record.at);
+        break;
+      case 'TextOnlyAssistant':
+        this.idleTimer = setTimeout(
+          () => this.setState('idle', this.opts.now()),
+          IDLE_TIMEOUT_MS,
+        );
+        break;
+      case 'ToolResultDetected': {
+        const toolName = this.pendingTools.get(record.toolUseId);
+        this.pendingTools.delete(record.toolUseId);
+        if (toolName !== undefined && !EXEMPT_TOOLS.has(toolName)) {
+          this.permissionTimer = setTimeout(
+            () => this.setState('permission', this.opts.now()),
+            PERMISSION_TIMEOUT_MS,
+          );
+        }
+        break;
+      }
+      case 'ProgressDetected':
+        this.handleProgress(record);
+        break;
+    }
+  }
+
+  private handleProgress(r: Extract<ParsedRecord, { kind: 'ProgressDetected' }>): void {
+    let sid = this.students.get(r.agentId);
+    if (sid === undefined) {
+      sid = asStudentId(r.agentId);
+      this.students.set(r.agentId, sid);
+      this.opts.emit({
+        type: 'StudentSpawned',
+        sessionId: this.opts.sessionId,
+        studentId: sid,
+        parentToolUseId: r.parentToolUseId,
+        spawnedAt: r.at,
+      });
+    }
+    if (r.event === 'stop') {
+      this.opts.emit({
+        type: 'StudentDespawned',
+        sessionId: this.opts.sessionId,
+        studentId: sid,
+        despawnedAt: r.at,
+      });
+      this.students.delete(r.agentId);
+    }
+  }
+
+  private setState(state: AgentState, at: number): void {
+    if (state === this.lastState) return;
+    this.lastState = state;
+    this.opts.emit({
+      type: 'StateChanged',
+      sessionId: this.opts.sessionId,
+      target: 'teacher',
+      state,
+      changedAt: at,
+    });
+  }
+
+  private clearTimers(): void {
+    if (this.idleTimer !== null) {
+      clearTimeout(this.idleTimer);
+      this.idleTimer = null;
+    }
+    if (this.permissionTimer !== null) {
+      clearTimeout(this.permissionTimer);
+      this.permissionTimer = null;
+    }
+  }
+
+  dispose(): void {
+    this.clearTimers();
+  }
+}
