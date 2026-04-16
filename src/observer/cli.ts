@@ -26,7 +26,7 @@ const DEFAULT_TEMPLATE: LayoutTemplate = {
 export async function main(argv: string[], env: NodeJS.ProcessEnv): Promise<number> {
   const [command, ...rest] = argv;
   if (command !== 'start') {
-    process.stderr.write('Usage: agent-classroom start [--port N] [--classrooms N] [--host ADDRESS]\n');
+    process.stderr.write('Usage: agent-classroom start [--port N] [--classrooms N] [--host ADDRESS] [--stale-ms N] [--grid-cols N]\n');
     return 2;
   }
 

@@ -39,11 +39,6 @@ const MAX_READ_BYTES = 64 * 1024; // 64 KB per tail cycle
 export class FileWatcher {
   private readonly opts: Required<FileWatcherOptions>;
   private readonly tracked = new Map<string, TrackedFile>();
-  /**
-   * Paths of historical files that went stale without ever emitting onFileAdded.
-   * Kept so that subsequent scans don't re-add them as "new" post-boot sessions.
-   */
-  private readonly dismissed = new Set<string>();
   private scanTimer: ReturnType<typeof setInterval> | null = null;
   private tailTimer: ReturnType<typeof setInterval> | null = null;
   /** Set to true after the first scanOnce() completes. */
@@ -93,7 +88,7 @@ export class FileWatcher {
       for (const f of files) {
         if (!f.endsWith('.jsonl')) continue;
         const fp = join(full, f);
-        if (!this.tracked.has(fp) && !this.dismissed.has(fp)) {
+        if (!this.tracked.has(fp)) {
           if (!this.firstScanDone) {
             // Historical file: track with offset = current size so we only pick
             // up *new* bytes (i.e. the user resumes this session after boot).
@@ -127,16 +122,14 @@ export class FileWatcher {
     // Check for stale files
     for (const [path, t] of this.tracked) {
       if (now - t.lastActivityAt > this.opts.staleThresholdMs) {
-        this.tracked.delete(path);
         if (t.emitted) {
           // Only notify if onFileAdded was previously emitted — avoids unbalanced
           // SessionEnded for historical files that were never started.
+          this.tracked.delete(path);
           this.opts.onFileClosed(path);
-        } else {
-          // Historical file expired without ever becoming active.
-          // Record it so subsequent scans don't re-add it as a "new" post-boot session.
-          this.dismissed.add(path);
         }
+        // unemitted: leave in tracked, keep waiting for growth so a resumed
+        // session can be re-admitted without being permanently blocked.
       }
     }
 

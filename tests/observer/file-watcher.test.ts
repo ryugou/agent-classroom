@@ -263,6 +263,38 @@ describe('FileWatcher', () => {
     fw.stop();
   });
 
+  it('resumes tailing a historical file that grows after stale threshold expires', async () => {
+    const projectDir = join(base, 'proj');
+    mkdirSync(projectDir);
+    const file = join(projectDir, 'resumed.jsonl');
+    writeFileSync(file, '{"type":"assistant","timestamp":0}\n');
+    const added: string[] = [];
+    const lines: string[] = [];
+    const fw = new FileWatcher({
+      rootDir: base,
+      onLine: (_p, l) => lines.push(l),
+      onFileAdded: (p) => added.push(p),
+      scanIntervalMs: 100,
+      tailIntervalMs: 50,
+      staleThresholdMs: 300,
+    });
+    fw.start();
+    await vi.advanceTimersByTimeAsync(200);
+    expect(added).toEqual([]);
+
+    // Wait past stale threshold without activity
+    await vi.advanceTimersByTimeAsync(500);
+    expect(added).toEqual([]);
+
+    // Now the file grows (user resumed the session)
+    appendFileSync(file, '{"type":"user","timestamp":1}\n');
+    await vi.advanceTimersByTimeAsync(300);
+    expect(added).toContain(file);
+    expect(lines.some((l) => l.includes('"user"'))).toBe(true);
+
+    fw.stop();
+  });
+
   it('does not emit SessionEnded for unemitted historical files at stale timeout', async () => {
     const projectDir = join(base, 'proj');
     mkdirSync(projectDir);
