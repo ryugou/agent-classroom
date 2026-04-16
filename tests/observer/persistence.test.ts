@@ -55,4 +55,14 @@ describe('persistence', () => {
     writeFileSync(file, JSON.stringify({ version: 999 }));
     expect(() => loadSchoolhouse(tmpDir)).toThrow(/version/);
   });
+
+  it('throws a descriptive error on malformed JSON', () => {
+    writeFileSync(join(tmpDir, 'layout.json'), '{ bad json }');
+    expect(() => loadSchoolhouse(tmpDir)).toThrow(/layout\.json/);
+  });
+
+  it('throws a descriptive error when JSON root is not an object', () => {
+    writeFileSync(join(tmpDir, 'layout.json'), '[]');
+    expect(() => loadSchoolhouse(tmpDir)).toThrow(/expected a JSON object/);
+  });
 });

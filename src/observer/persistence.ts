@@ -7,12 +7,23 @@ const FILE_NAME = 'layout.json';
 
 export function loadSchoolhouse(stateDir: string): SchoolhousePersistence | null {
   const p = join(stateDir, FILE_NAME);
+  // Single-user local state: TOCTOU window between existsSync and readFileSync is acceptable.
   if (!existsSync(p)) return null;
-  const raw = JSON.parse(readFileSync(p, 'utf8')) as { version: number };
-  if (raw.version !== 1) {
-    throw new Error(`unsupported schema version: ${raw.version} (expected 1)`);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(p, 'utf8'));
+  } catch (cause) {
+    throw new Error(`Failed to parse ${p}: ${String(cause)}`);
   }
-  return raw as SchoolhousePersistence;
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new Error(`${p}: expected a JSON object, got ${JSON.stringify(raw)}`);
+  }
+  const obj = raw as { version: unknown };
+  if (obj.version !== 1) {
+    throw new Error(`unsupported schema version: ${String(obj.version)} (expected 1)`);
+  }
+  // TODO Phase 2: validate full shape with a schema library; for now we trust saveSchoolhouse output.
+  return obj as unknown as SchoolhousePersistence;
 }
 
 export function saveSchoolhouse(stateDir: string, data: SchoolhousePersistence): void {
