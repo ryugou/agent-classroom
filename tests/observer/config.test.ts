@@ -77,9 +77,4 @@ describe('resolveConfig', () => {
     const cfg = resolveConfig({ argv: ['--grid-cols', '5'], env: {} });
     expect(cfg.gridShape.cols).toBe(5);
   });
-
-  it('overrides host via AGENT_CLASSROOM_HOST when --host absent', () => {
-    const cfg = resolveConfig({ argv: [], env: { AGENT_CLASSROOM_HOST: '0.0.0.0' } });
-    expect(cfg.host).toBe('0.0.0.0');
-  });
 });

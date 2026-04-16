@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createServer } from '../../src/observer/server.js';
 import WebSocket from 'ws';
-import { AddressInfo } from 'node:net';
+import type { AddressInfo } from 'node:net';
 import { HostSource } from '../../src/observer/sources/host-source.js';
 import { ClassroomManager } from '../../src/observer/classroom-manager.js';
 import { Broadcaster } from '../../src/observer/ws-broadcaster.js';
