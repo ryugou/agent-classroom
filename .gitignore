@@ -1,9 +1,3 @@
-# Dependencies
-node_modules/
-
-# Build output
-dist/
-
 # Reference repositories (read-only, not part of this project)
 pixel-agents/
 
