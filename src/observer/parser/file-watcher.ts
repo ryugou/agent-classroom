@@ -159,11 +159,20 @@ export class FileWatcher {
     const available = fileStat.size - t.offset;
     const readLen = Math.min(available, MAX_READ_BYTES);
 
-    const fd = openSync(t.path, 'r');
+    let fd: number;
+    try {
+      fd = openSync(t.path, 'r');
+    } catch {
+      // File was deleted between statSync and openSync (race condition) — drop + notify
+      this.tracked.delete(t.path);
+      if (t.emitted) this.opts.onFileClosed(t.path);
+      return;
+    }
     try {
       const buf = Buffer.allocUnsafe(readLen);
-      readSync(fd, buf, 0, readLen, t.offset);
-      t.offset += readLen;
+      const bytesRead = readSync(fd, buf, 0, readLen, t.offset);
+      if (bytesRead === 0) return;  // nothing to process
+      t.offset += bytesRead;
       t.lastActivityAt = Date.now();
 
       // For historical files (emitted=false): first new bytes trigger onFileAdded,
@@ -173,7 +182,7 @@ export class FileWatcher {
         t.emitted = true;
       }
 
-      const chunk = t.lineBuffer + t.decoder.write(buf);
+      const chunk = t.lineBuffer + t.decoder.write(buf.subarray(0, bytesRead));
       const lines = chunk.split('\n');
       t.lineBuffer = lines.pop() ?? '';  // last element is the incomplete trailing fragment (or '' if buffer ended with \n)
       for (const line of lines) {

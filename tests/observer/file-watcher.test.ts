@@ -325,6 +325,37 @@ describe('FileWatcher', () => {
     fw.stop();
   });
 
+  it('survives openSync failure after statSync succeeded (race condition)', async () => {
+    const projectDir = join(base, 'proj');
+    mkdirSync(projectDir);
+    const file = join(projectDir, 'racy.jsonl');
+    writeFileSync(file, '{"type":"user","timestamp":0}\n');
+    const added: string[] = [];
+    const closed: string[] = [];
+    const fw = new FileWatcher({
+      rootDir: base,
+      onLine: () => {},
+      onFileAdded: (p) => added.push(p),
+      onFileClosed: (p) => closed.push(p),
+      scanIntervalMs: 100,
+      tailIntervalMs: 50,
+    });
+    fw.start();
+    await vi.advanceTimersByTimeAsync(500);
+    // Growth after first bytes → onFileAdded fires
+    appendFileSync(file, '{"type":"user","timestamp":1}\n');
+    await vi.advanceTimersByTimeAsync(300);
+    expect(added).toContain(file);
+
+    // Now delete the file; next tail cycle would have previously crashed on openSync.
+    rmSync(file);
+    // Should survive without throwing + emit onFileClosed (tracked was emitted)
+    await vi.advanceTimersByTimeAsync(300);
+    expect(closed).toContain(file);
+
+    fw.stop();
+  });
+
   it('does not emit SessionEnded for unemitted historical files at stale timeout', async () => {
     const projectDir = join(base, 'proj');
     mkdirSync(projectDir);
