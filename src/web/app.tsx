@@ -1,24 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createStore, type StoreState } from './store.js';
 import { connect } from './ws-client.js';
 import { preload } from './canvas/renderer.js';
 import { Schoolhouse } from './components/Schoolhouse.js';
 import { Toasts } from './components/Toast.js';
 
-// Module-level init: this module is the browser-only entry point,
-// so WS connect + sprite preload run unconditionally at import.
-const store = createStore();
-connect(store);
-const preloadDone = preload();
-
 export function App() {
+  const storeRef = useRef(createStore());
+  const store = storeRef.current;
   const [state, setState] = useState<StoreState>(store.getState());
   const [preloaded, setPreloaded] = useState(false);
 
-  useEffect(() => store.subscribe(() => setState(store.getState())), []);
+  useEffect(() => store.subscribe(() => setState(store.getState())), [store]);
+
   useEffect(() => {
-    preloadDone.then(() => setPreloaded(true)).catch(() => setPreloaded(true));
-  }, []);
+    const disconnect = connect(store);
+    preload().then(() => setPreloaded(true)).catch(() => setPreloaded(true));
+    return disconnect;
+  }, [store]);
 
   return (
     <>

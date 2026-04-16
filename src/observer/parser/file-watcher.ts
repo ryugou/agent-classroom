@@ -68,6 +68,8 @@ export class FileWatcher {
     if (this.tailTimer) clearInterval(this.tailTimer);
     this.scanTimer = null;
     this.tailTimer = null;
+    this.tracked.clear();
+    this.firstScanDone = false;
   }
 
   private scanOnce(): void {

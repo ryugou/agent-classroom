@@ -26,6 +26,7 @@ import { fileURLToPath } from 'node:url';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import http from 'node:http';
+import { createServer as createNetServer } from 'node:net';
 import WebSocket from 'ws';
 
 // ---------------------------------------------------------------------------
@@ -67,9 +68,21 @@ interface ServerHandle {
   teardown: () => Promise<void>;
 }
 
-function randomPort(): number {
-  // Avoid port 0 (rejected by config validator). Pick in ephemeral range 40000-49999.
-  return 40000 + Math.floor(Math.random() * 9999);
+async function findFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = createNetServer();
+    srv.unref();
+    srv.on('error', reject);
+    srv.listen(0, () => {
+      const address = srv.address();
+      if (typeof address === 'object' && address !== null) {
+        const port = address.port;
+        srv.close(() => resolve(port));
+      } else {
+        reject(new Error('no port'));
+      }
+    });
+  });
 }
 
 async function startObserver(opts: {
@@ -82,7 +95,7 @@ async function startObserver(opts: {
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,
-    AGENT_CLASSROOM_PORT: String(opts.port ?? randomPort()),
+    AGENT_CLASSROOM_PORT: String(opts.port ?? await findFreePort()),
     AGENT_CLASSROOM_CLASSROOMS: String(opts.classrooms ?? 4),
     AGENT_CLASSROOM_CLAUDE_DIR: opts.claudeDir,
     AGENT_CLASSROOM_STATE_DIR: opts.stateDir,
@@ -95,7 +108,7 @@ async function startObserver(opts: {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
-  const assignedPort = env.AGENT_CLASSROOM_PORT ? Number(env.AGENT_CLASSROOM_PORT) : randomPort();
+  const assignedPort = env.AGENT_CLASSROOM_PORT ? Number(env.AGENT_CLASSROOM_PORT) : await findFreePort();
 
   // Wait for "observer started" log line
   const port = await new Promise<number>((resolve, reject) => {
