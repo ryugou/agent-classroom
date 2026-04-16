@@ -57,4 +57,19 @@ describe('resolveConfig', () => {
     const cfg = resolveConfig({ argv: [], env: { AGENT_CLASSROOM_HOST: '192.168.1.10' } });
     expect(cfg.host).toBe('192.168.1.10');
   });
+
+  it('resolves --stale-ms flag override', () => {
+    const cfg = resolveConfig({ argv: ['--stale-ms', '60000'], env: {} });
+    expect(cfg.staleThresholdMs).toBe(60000);
+  });
+
+  it('defaults staleThresholdMs to 30 minutes', () => {
+    const cfg = resolveConfig({ argv: [], env: {} });
+    expect(cfg.staleThresholdMs).toBe(30 * 60 * 1000);
+  });
+
+  it('AGENT_CLASSROOM_STALE_MS env overrides staleThresholdMs', () => {
+    const cfg = resolveConfig({ argv: [], env: { AGENT_CLASSROOM_STALE_MS: '120000' } });
+    expect(cfg.staleThresholdMs).toBe(120000);
+  });
 });

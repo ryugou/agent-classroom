@@ -54,7 +54,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv): Promise<numb
     layoutTemplates: persisted.layoutTemplates,
   };
   const broadcaster = new Broadcaster({ manager, initialSnapshot });
-  const source = new HostSource({ rootDir: config.claudeProjectsDir });
+  const source = new HostSource({ rootDir: config.claudeProjectsDir, staleThresholdMs: config.staleThresholdMs });
   source.on((e) => broadcaster.ingest(e));
 
   const here = dirname(fileURLToPath(import.meta.url));

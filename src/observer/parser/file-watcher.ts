@@ -1,5 +1,9 @@
 import { readdirSync, statSync, openSync, readSync, closeSync } from 'node:fs';
 import { join } from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
+
+/** Default session-abandoned heuristic (30 minutes). Exported so config layer can reference it. */
+export const DEFAULT_STALE_THRESHOLD_MS = 30 * 60_000;
 
 export interface FileWatcherOptions {
   rootDir: string;
@@ -25,6 +29,8 @@ interface TrackedFile {
    * true for files discovered after the first scan (genuinely new sessions).
    */
   emitted: boolean;
+  /** Per-file UTF-8 decoder that buffers incomplete multi-byte sequences across chunk boundaries. */
+  decoder: StringDecoder;
 }
 
 /** Max bytes read from a single file per tail cycle. Prevents event-loop blocking on large backlogs. */
@@ -33,6 +39,11 @@ const MAX_READ_BYTES = 64 * 1024; // 64 KB per tail cycle
 export class FileWatcher {
   private readonly opts: Required<FileWatcherOptions>;
   private readonly tracked = new Map<string, TrackedFile>();
+  /**
+   * Paths of historical files that went stale without ever emitting onFileAdded.
+   * Kept so that subsequent scans don't re-add them as "new" post-boot sessions.
+   */
+  private readonly dismissed = new Set<string>();
   private scanTimer: ReturnType<typeof setInterval> | null = null;
   private tailTimer: ReturnType<typeof setInterval> | null = null;
   /** Set to true after the first scanOnce() completes. */
@@ -42,9 +53,9 @@ export class FileWatcher {
     this.opts = {
       scanIntervalMs: 1000,
       tailIntervalMs: 500,
-      // 30 minutes: heuristic for "session abandoned".
+      // DEFAULT_STALE_THRESHOLD_MS: heuristic for "session abandoned".
       // Definitive session-end detection requires hooks mode (Phase 2).
-      staleThresholdMs: 30 * 60_000,
+      staleThresholdMs: DEFAULT_STALE_THRESHOLD_MS,
       onFileAdded: () => {},
       onFileClosed: () => {},
       ...opts,
@@ -82,7 +93,7 @@ export class FileWatcher {
       for (const f of files) {
         if (!f.endsWith('.jsonl')) continue;
         const fp = join(full, f);
-        if (!this.tracked.has(fp)) {
+        if (!this.tracked.has(fp) && !this.dismissed.has(fp)) {
           if (!this.firstScanDone) {
             // Historical file: track with offset = current size so we only pick
             // up *new* bytes (i.e. the user resumes this session after boot).
@@ -95,6 +106,7 @@ export class FileWatcher {
               lastActivityAt: now,
               lineBuffer: '',
               emitted: false,
+              decoder: new StringDecoder('utf8'),
             });
           } else {
             // File appeared after boot — genuine new session; tail from the beginning.
@@ -104,6 +116,7 @@ export class FileWatcher {
               lastActivityAt: now,
               lineBuffer: '',
               emitted: true,
+              decoder: new StringDecoder('utf8'),
             });
             this.opts.onFileAdded(fp);
           }
@@ -115,7 +128,15 @@ export class FileWatcher {
     for (const [path, t] of this.tracked) {
       if (now - t.lastActivityAt > this.opts.staleThresholdMs) {
         this.tracked.delete(path);
-        this.opts.onFileClosed(path);
+        if (t.emitted) {
+          // Only notify if onFileAdded was previously emitted — avoids unbalanced
+          // SessionEnded for historical files that were never started.
+          this.opts.onFileClosed(path);
+        } else {
+          // Historical file expired without ever becoming active.
+          // Record it so subsequent scans don't re-add it as a "new" post-boot session.
+          this.dismissed.add(path);
+        }
       }
     }
 
@@ -150,7 +171,7 @@ export class FileWatcher {
         t.emitted = true;
       }
 
-      const chunk = t.lineBuffer + buf.toString('utf8');
+      const chunk = t.lineBuffer + t.decoder.write(buf);
       const lines = chunk.split('\n');
       t.lineBuffer = lines.pop() ?? '';  // last element is the incomplete trailing fragment (or '' if buffer ended with \n)
       for (const line of lines) {

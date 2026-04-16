@@ -29,4 +29,5 @@ export interface Config {
   gridShape: { cols: number; rows: number };  // default: cols=3, rows=ceil(N/3)
   claudeProjectsDir: string;     // default: ~/.claude/projects
   stateDir: string;              // default: ~/.agent-classroom
+  staleThresholdMs: number;      // default: 30 minutes
 }

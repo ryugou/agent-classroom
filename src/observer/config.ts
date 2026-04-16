@@ -1,6 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Config } from '../shared/persistence.js';
+import { DEFAULT_STALE_THRESHOLD_MS } from './parser/file-watcher.js';
 
 export interface ResolveInput {
   argv: string[];
@@ -17,6 +18,7 @@ export function resolveConfig({ argv, env }: ResolveInput): Config {
   const host = (readFlag(argv, '--host') ?? env.AGENT_CLASSROOM_HOST ?? '').trim() || DEFAULT_HOST;
   const classroomCount = parseIntOr(readFlag(argv, '--classrooms') ?? env.AGENT_CLASSROOM_CLASSROOMS, DEFAULT_CLASSROOMS, 'classrooms');
   const gridCols = parseIntOr(readFlag(argv, '--grid-cols') ?? env.AGENT_CLASSROOM_GRID_COLS, DEFAULT_GRID_COLS, 'grid-cols');
+  const staleThresholdMs = parseIntOr(readFlag(argv, '--stale-ms') ?? env.AGENT_CLASSROOM_STALE_MS, DEFAULT_STALE_THRESHOLD_MS, 'stale-ms');
 
   return {
     port,
@@ -25,6 +27,7 @@ export function resolveConfig({ argv, env }: ResolveInput): Config {
     gridShape: { cols: gridCols, rows: Math.ceil(classroomCount / gridCols) },
     claudeProjectsDir: valueOrDefault(env.AGENT_CLASSROOM_CLAUDE_DIR, join(homedir(), '.claude', 'projects')),
     stateDir: valueOrDefault(env.AGENT_CLASSROOM_STATE_DIR, join(homedir(), '.agent-classroom')),
+    staleThresholdMs,
   };
 }
 

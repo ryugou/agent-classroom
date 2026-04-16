@@ -199,4 +199,95 @@ describe('FileWatcher', () => {
     expect(added).toContain(file); // post-boot file → immediate emit at scan
     fw.stop();
   });
+
+  // --- UTF-8 / chunk-boundary regression tests ---
+
+  it('handles lines split across 64KB chunk boundaries', async () => {
+    const projectDir = join(base, 'proj');
+    mkdirSync(projectDir);
+    const file = join(projectDir, 'big.jsonl');
+    writeFileSync(file, '');
+    const lines: string[] = [];
+    const fw = new FileWatcher({
+      rootDir: base,
+      onLine: (_p, l) => lines.push(l),
+      scanIntervalMs: 100,
+      tailIntervalMs: 50,
+    });
+    fw.start();
+    await vi.advanceTimersByTimeAsync(200);
+
+    // Write a line longer than 64KB so multiple tail cycles are needed
+    const bigPayload = 'x'.repeat(70_000);
+    appendFileSync(file, `{"type":"marker","data":"${bigPayload}"}\n`);
+
+    // Allow several tail cycles to drain
+    for (let i = 0; i < 10; i++) {
+      await vi.advanceTimersByTimeAsync(100);
+    }
+
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('marker');
+    expect(lines[0]!.length).toBeGreaterThan(70_000);
+
+    fw.stop();
+  });
+
+  it('preserves multi-byte UTF-8 characters across chunk boundaries', async () => {
+    const projectDir = join(base, 'proj');
+    mkdirSync(projectDir);
+    const file = join(projectDir, 'utf8.jsonl');
+    writeFileSync(file, '');
+    const lines: string[] = [];
+    const fw = new FileWatcher({
+      rootDir: base,
+      onLine: (_p, l) => lines.push(l),
+      scanIntervalMs: 100,
+      tailIntervalMs: 50,
+    });
+    fw.start();
+    await vi.advanceTimersByTimeAsync(200);
+
+    // Japanese text padded to exceed 64KB chunk boundary
+    const jp = 'あ'.repeat(30_000);  // 30k × 3 bytes = 90KB
+    appendFileSync(file, `{"type":"japanese","text":"${jp}"}\n`);
+
+    for (let i = 0; i < 10; i++) {
+      await vi.advanceTimersByTimeAsync(100);
+    }
+
+    expect(lines).toHaveLength(1);
+    const parsed = JSON.parse(lines[0]!);
+    expect(parsed.text).toBe(jp);
+
+    fw.stop();
+  });
+
+  it('does not emit SessionEnded for unemitted historical files at stale timeout', async () => {
+    const projectDir = join(base, 'proj');
+    mkdirSync(projectDir);
+    const file = join(projectDir, 'historical.jsonl');
+    writeFileSync(file, '{"type":"assistant","timestamp":0}\n');
+    const added: string[] = [];
+    const closed: string[] = [];
+    const fw = new FileWatcher({
+      rootDir: base,
+      onLine: () => {},
+      onFileAdded: (p) => added.push(p),
+      onFileClosed: (p) => closed.push(p),
+      scanIntervalMs: 100,
+      tailIntervalMs: 50,
+      staleThresholdMs: 500,
+    });
+    fw.start();
+    await vi.advanceTimersByTimeAsync(200);
+    expect(added).toEqual([]);
+
+    // Wait past stale threshold without any activity
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(added).toEqual([]);
+    expect(closed).toEqual([]);  // should NOT fire for never-emitted file
+
+    fw.stop();
+  });
 });
