@@ -295,6 +295,36 @@ describe('FileWatcher', () => {
     fw.stop();
   });
 
+  it('drops tracked entry + fires onFileClosed when tracked file is deleted', async () => {
+    const projectDir = join(base, 'proj');
+    mkdirSync(projectDir);
+    const file = join(projectDir, 'transient.jsonl');
+    writeFileSync(file, '');
+    const added: string[] = [];
+    const closed: string[] = [];
+    const fw = new FileWatcher({
+      rootDir: base,
+      onLine: () => {},
+      onFileAdded: (p) => added.push(p),
+      onFileClosed: (p) => closed.push(p),
+      scanIntervalMs: 200,
+      tailIntervalMs: 50,
+    });
+    fw.start();
+    await vi.advanceTimersByTimeAsync(300);
+    // File was created BEFORE fw.start() — historical, so no added yet
+    appendFileSync(file, '{"type":"user","timestamp":0}\n');
+    await vi.advanceTimersByTimeAsync(300);
+    expect(added).toContain(file);
+
+    // Delete the file — tailOne should drop it + fire onFileClosed (since emitted)
+    rmSync(file);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(closed).toContain(file);
+
+    fw.stop();
+  });
+
   it('does not emit SessionEnded for unemitted historical files at stale timeout', async () => {
     const projectDir = join(base, 'proj');
     mkdirSync(projectDir);

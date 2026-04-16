@@ -1,5 +1,9 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
+// NOTE: The usage string in main() must be kept in sync with the flags defined
+// in resolveConfig (src/observer/config.ts). End-to-end CLI testing happens via
+// scripts/dod-smoke.ts — unit tests cannot easily import this module because it
+// auto-executes at import time.
 import { existsSync } from 'node:fs';
 import { resolveConfig } from './config.js';
 import { loadSchoolhouse, saveSchoolhouse, initializeSchoolhouse } from './persistence.js';
@@ -32,6 +36,22 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv): Promise<numb
 
   const config = resolveConfig({ argv: rest, env });
   let persisted = loadSchoolhouse(config.stateDir);
+  if (persisted) {
+    if (persisted.classrooms.length !== config.classroomCount) {
+      logger.warn('persisted layout overrides --classrooms', {
+        requested: config.classroomCount,
+        persisted: persisted.classrooms.length,
+        hint: `delete ${join(config.stateDir, 'layout.json')} to reset`,
+      });
+    }
+    if (persisted.gridShape.cols !== config.gridShape.cols) {
+      logger.warn('persisted layout overrides --grid-cols', {
+        requested: config.gridShape.cols,
+        persisted: persisted.gridShape.cols,
+        hint: `delete ${join(config.stateDir, 'layout.json')} to reset`,
+      });
+    }
+  }
   if (!persisted) {
     persisted = initializeSchoolhouse({
       classroomCount: config.classroomCount,

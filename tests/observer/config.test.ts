@@ -72,4 +72,14 @@ describe('resolveConfig', () => {
     const cfg = resolveConfig({ argv: [], env: { AGENT_CLASSROOM_STALE_MS: '120000' } });
     expect(cfg.staleThresholdMs).toBe(120000);
   });
+
+  it('overrides --grid-cols flag', () => {
+    const cfg = resolveConfig({ argv: ['--grid-cols', '5'], env: {} });
+    expect(cfg.gridShape.cols).toBe(5);
+  });
+
+  it('overrides host via AGENT_CLASSROOM_HOST when --host absent', () => {
+    const cfg = resolveConfig({ argv: [], env: { AGENT_CLASSROOM_HOST: '0.0.0.0' } });
+    expect(cfg.host).toBe('0.0.0.0');
+  });
 });

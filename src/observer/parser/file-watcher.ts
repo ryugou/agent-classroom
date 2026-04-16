@@ -142,7 +142,14 @@ export class FileWatcher {
 
   private tailOne(t: TrackedFile): void {
     let fileStat;
-    try { fileStat = statSync(t.path); } catch { return; }
+    try {
+      fileStat = statSync(t.path);
+    } catch {
+      // File was deleted — drop from tracked and notify if we had emitted it
+      this.tracked.delete(t.path);
+      if (t.emitted) this.opts.onFileClosed(t.path);
+      return;
+    }
     if (fileStat.size <= t.offset) return;
     // Note: truncation (size < offset) would leave offset stale. Acceptable here because
     // Claude Code JSONL files are append-only.

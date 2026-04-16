@@ -29,7 +29,7 @@ export class Broadcaster {
       case 'SessionStarted': {
         const res = this.manager.assign(ev.sessionId);
         if (!res.ok) {
-          this.broadcast({ type: 'Toast', level: 'warn', message: `教室が全て埋まっています (session=${ev.sessionId})。config で classroomCount を増やして再起動してください。` });
+          this.broadcast({ type: 'Toast', level: 'warn', message: `教室が全て埋まっています (session=${ev.sessionId})。--classrooms を増やして再起動するか、~/.agent-classroom/layout.json を削除して再初期化してください。` });
           return;
         }
         const existing = this.snapshot.classrooms.find((c) => c.id === res.classroomId);
