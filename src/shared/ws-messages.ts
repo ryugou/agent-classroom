@@ -15,7 +15,7 @@ export interface ClassroomSnapshot {
 export interface SchoolhouseSnapshot {
   gridShape: { cols: number; rows: number };
   classrooms: ClassroomSnapshot[];
-  layoutTemplates: { id: string; /* Task 3 で具体化 */ }[];
+  layoutTemplates: { id: string; /* Task 16 で LayoutTemplate[] に拡張 */ }[];
 }
 
 export type WSMessage =
