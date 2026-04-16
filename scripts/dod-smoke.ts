@@ -90,6 +90,7 @@ async function startObserver(opts: {
   claudeDir: string;
   stateDir: string;
   port?: number;
+  staleMs?: number;
 }): Promise<{ port: number; proc: ChildProcess }> {
   const cliPath = join(repoRoot, 'dist', 'observer', 'observer', 'cli.js');
 
@@ -99,8 +100,9 @@ async function startObserver(opts: {
     AGENT_CLASSROOM_CLASSROOMS: String(opts.classrooms ?? 4),
     AGENT_CLASSROOM_CLAUDE_DIR: opts.claudeDir,
     AGENT_CLASSROOM_STATE_DIR: opts.stateDir,
-    // Speed up file watcher for tests (env vars not read by FileWatcher — passed via CLI is not
-    // supported either; we rely on default 1000ms scan which is fast enough for this harness)
+    // Set a short stale threshold so DoD-5 can exercise TeacherLeft without a long wait.
+    // 3000ms is long enough for DoD-3/4/7 to complete well within the threshold.
+    AGENT_CLASSROOM_STALE_MS: String(opts.staleMs ?? 3000),
   };
 
   const proc = spawn(process.execPath, [cliPath, 'start'], {
@@ -290,64 +292,69 @@ async function runTests(): Promise<void> {
   }
 
   // ------------------------------------------------------------------
-  // DoD-4: sub-agent line → StudentEntered
+  // DoD-4: progress/agent_progress 行追記 → StudentEntered WS 受信
   // ------------------------------------------------------------------
-  log('[DoD-4] Task tool 行追記 → StudentEntered 検知...');
+  log('[DoD-4] progress/agent_progress 行追記 → StudentEntered WS 受信...');
+  // Keep this WS connection open; DoD-5 reuses it to observe TeacherLeft.
+  const wsForDod45 = new WebSocket(`ws://127.0.0.1:${serverPort}/ws`);
+  const dod45Messages: string[] = [];
+  await new Promise<void>((resolve, reject) => {
+    wsForDod45.once('open', () => resolve());
+    wsForDod45.once('error', reject);
+  });
+  wsForDod45.on('message', (data: Buffer) => dod45Messages.push(data.toString()));
+
   try {
-    // StateInferrer emits StudentEntered when it sees a parallel sub-invocation in the JSONL.
-    // For simplicity, append a second Bash tool_use which triggers another cycle.
-    // The real StudentEntered path requires a specific tool_use pattern tracked by StateInferrer.
-    // We verify the sub-agent event type is wired by checking broadcaster messages.
-    // Since the exact sub-agent trigger depends on StateInferrer internals, we note this
-    // as "partially automated" — the unit tests in state-inferrer.test.ts cover the logic,
-    // and here we check the broadcast pipe is intact.
-
-    // Append a tool_result + new tool_use to simulate continued activity
-    const toolResult = JSON.stringify({
-      type: 'tool_result',
+    // transcript-parser.ts handles {type:'progress', subtype:'agent_progress', parentToolUseID, agentId, event}
+    // StateInferrer.handleProgress emits StudentSpawned → WsBroadcaster converts to StudentEntered
+    const progressRecord = JSON.stringify({
+      type: 'progress',
+      subtype: 'agent_progress',
       timestamp: Date.now(),
-      tool_use_id: 'tu_1',
+      parentToolUseID: 'tu-smoke-parent',
+      agentId: 'student-smoke-1',
+      event: 'tool_use',
+      tool: 'Read',
     }) + '\n';
-    const nextTool = JSON.stringify({
-      type: 'assistant',
-      timestamp: Date.now() + 100,
-      message: {
-        content: [{ type: 'tool_use', id: 'tu_2', name: 'Task', input: { prompt: 'sub-task' } }],
-      },
-    }) + '\n';
-    appendFileSync(sessionFile1, toolResult + nextTool);
+    appendFileSync(sessionFile1, progressRecord);
 
-    // Wait briefly for the file to be tailed and processed
+    // Wait for file tail (tailIntervalMs=500ms) + broadcast pipeline
     await sleep(1500);
 
-    // Check we can still receive messages (broadcaster is alive)
-    const { status } = await httpGet(`http://127.0.0.1:${serverPort}/healthz`);
-    if (status === 200) {
-      // StudentEntered requires the real StateInferrer to fire; unit tests in
-      // tests/observer/state-inferrer.test.ts validate this path. Here we confirm
-      // the server remains healthy and the broadcast pipe didn't break.
-      pass(4, 'Task tool 追記後サーバー健全 (StudentEntered は unit test で保証)');
+    const sawStudentEntered = dod45Messages.some((m) => m.includes('StudentEntered'));
+    if (sawStudentEntered) {
+      pass(4, 'agent_progress 追記で StudentEntered を WebSocket 受信');
     } else {
-      fail(4, 'Task tool 追記後', `healthz status=${status}`);
+      fail(4, 'agent_progress 追記後', `expected StudentEntered message; got ${dod45Messages.length} messages: ${dod45Messages.slice(0, 3).join(' | ')}`);
     }
   } catch (e) {
-    fail(4, 'Task tool 行追記', String(e));
+    fail(4, 'progress/agent_progress 行追記', String(e));
   }
 
   // ------------------------------------------------------------------
-  // DoD-5: JSONL stale → TeacherLeft  (partial: logic verified by unit tests)
+  // DoD-5: JSONL stale → TeacherLeft (integration: AGENT_CLASSROOM_STALE_MS=3000)
   // ------------------------------------------------------------------
-  // NOTE: staleThresholdMs is configurable in the real CLI via --stale-ms and
-  // AGENT_CLASSROOM_STALE_MS. When not overridden, the CLI uses
-  // DEFAULT_STALE_THRESHOLD_MS (currently 30 minutes).
-  // This smoke harness does not override that value here, so exercising the
-  // stale-detection + TeacherLeft path in-process would require a long wait.
-  // That path is covered by:
-  //   tests/observer/host-source.test.ts  (uses vi.useFakeTimers to advance time)
-  //   tests/observer/file-watcher.test.ts
-  // Therefore we mark this DoD item as "unit-test verified" in this harness.
-  log('[DoD-5] JSONL stale → TeacherLeft  (configurable via --stale-ms / AGENT_CLASSROOM_STALE_MS; unit tests cover this path)');
-  pass(5, 'unit test verified — stale path is configurable, but covered here by tests/observer/host-source.test.ts + file-watcher.test.ts');
+  log('[DoD-5] JSONL stale → TeacherLeft (AGENT_CLASSROOM_STALE_MS=3000ms)...');
+  try {
+    // Observer was spawned with AGENT_CLASSROOM_STALE_MS=3000.
+    // After last file activity (~1500ms ago from DoD-4 sleep), we wait an additional
+    // 2500ms so total elapsed exceeds the 3000ms threshold. The scan interval is 1000ms,
+    // so TeacherLeft should fire within staleMs + scanIntervalMs ≈ 4000ms of last write.
+    const waitMs = 2500;
+    await sleep(waitMs);
+
+    const sawTeacherLeft = dod45Messages.some((m) => m.includes('TeacherLeft'));
+    wsForDod45.close();
+
+    if (sawTeacherLeft) {
+      pass(5, `TeacherLeft broadcast を AGENT_CLASSROOM_STALE_MS=3000ms 後に WS 受信`);
+    } else {
+      fail(5, 'JSONL stale → TeacherLeft', `no TeacherLeft in ${dod45Messages.length} messages`);
+    }
+  } catch (e) {
+    wsForDod45.close();
+    fail(5, 'JSONL stale → TeacherLeft', String(e));
+  }
 
   // ------------------------------------------------------------------
   // DoD-6: layout.json written (state persistence)

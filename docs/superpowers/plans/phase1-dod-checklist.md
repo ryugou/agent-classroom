@@ -7,8 +7,8 @@
 | 1 | CLI 起動 & ブラウザアクセス (`/healthz`) | automated ✓ | smoke test で実証済み |
 | 2 | N=4 教室 grid 表示 (ClassroomList WS) | automated ✓ | smoke test で実証済み |
 | 3 | CC 起動で教師入室演出 (TeacherEntered) | automated ✓ | fake JSONL で smoke test 実証済み |
-| 4 | Task tool で sub-agent が生徒として出現 | automated-partial | broadcaster 疎通は smoke test 確認; StudentEntered の実挙動は unit test + **手動要** |
-| 5 | session 終了で教室が空 (TeacherLeft) | unit-test ✓ | stale 120s wait は CI 不向き; host-source.test.ts + file-watcher.test.ts で fake timer 検証済み |
+| 4 | Task tool で sub-agent が生徒として出現 | automated ✓ | smoke test: progress/agent_progress 追記 → StateInferrer.handleProgress → StudentEntered WS 受信確認 |
+| 5 | session 終了で教室が空 (TeacherLeft) | automated ✓ | smoke test: AGENT_CLASSROOM_STALE_MS=3000ms で起動し stale 待機 → TeacherLeft WS 受信確認 |
 | 6 | 再起動後に layout 復元 (layout.json 書き込み) | automated ✓ | smoke test で layout.json 存在確認済み |
 | 7 | 並行 2 セッションで 2 教室表示 | automated ✓ | smoke test で 2 × TeacherEntered 確認済み |
 | 8 | N=1 で 2 個目起動時 Toast 通知 | automated ✓ | smoke test で Toast warn 受信確認済み |
@@ -34,10 +34,10 @@ pnpm tsx scripts/dod-smoke.ts
 [DoD-2] ✓ PASS  ClassroomList 受信 (4 教室)
 [DoD-3] 偽 JSONL 出現 → TeacherEntered 検知...
 [DoD-3] ✓ PASS  TeacherEntered 受信 (sessionId=session-abc-001)
-[DoD-4] Task tool 行追記 → StudentEntered 検知...
-[DoD-4] ✓ PASS  Task tool 追記後サーバー健全 (StudentEntered は unit test で保証)
-[DoD-5] JSONL stale → TeacherLeft  (stale threshold = 120s default; unit test covers this)
-[DoD-5] ✓ PASS  unit test verified — see tests/observer/host-source.test.ts + file-watcher.test.ts
+[DoD-4] progress/agent_progress 行追記 → StudentEntered WS 受信...
+[DoD-4] ✓ PASS  agent_progress 追記で StudentEntered を WebSocket 受信
+[DoD-5] JSONL stale → TeacherLeft (AGENT_CLASSROOM_STALE_MS=3000ms)...
+[DoD-5] ✓ PASS  TeacherLeft broadcast を AGENT_CLASSROOM_STALE_MS=3000ms 後に WS 受信
 [DoD-6] layout.json 書き込み確認 (再起動後の状態復元)...
 [DoD-6] ✓ PASS  永続化ファイル存在: /tmp/ac-dod-xxx/state/layout.json
 [DoD-7] 並行 2 JSONL → 2 教室への TeacherEntered 確認...
@@ -77,7 +77,11 @@ pnpm test
 
 ### DoD-5 (JSONL stale → TeacherLeft) について
 
-`FileWatcher` のデフォルト `staleThresholdMs` は **30分 (1,800,000ms)**。これは「セッションが放棄された」ことを示す経験的な閾値であり、確定的なセッション終了検出は Phase 2 の hooks モードが必要。CLI からはこの値を env 経由で変更する手段がない（コンストラクタ引数のみ）。待機するスモークテストは CI には不適切なため、以下のように根拠を分散：
+`staleThresholdMs` は `--stale-ms` CLI フラグまたは `AGENT_CLASSROOM_STALE_MS` 環境変数で設定可能。デフォルト値は `DEFAULT_STALE_THRESHOLD_MS`（30分 = 1,800,000ms）。
+
+smoke test では `AGENT_CLASSROOM_STALE_MS=3000` でオブザーバーを起動し、ファイル最終書き込みから 3000ms+ 経過後に `TeacherLeft` WS メッセージを受信することを統合テストとして確認している。
+
+ユニットテストでも引き続き補完：
 
 - `tests/observer/file-watcher.test.ts` — `vi.useFakeTimers()` で時間を進め、stale 検出ロジックを直接検証
 - `tests/observer/host-source.test.ts` — `staleThresholdMs: 500` を指定した HostSource で SessionEnded 発火を確認
@@ -87,11 +91,9 @@ pnpm test
 
 ### DoD-4 (StudentEntered) について
 
-`StudentEntered` は `StateInferrer` が Task tool の `tool_use` + `tool_result` パターンを検出した際に発火する。
-smoke test では broadcaster / WS パイプの疎通は確認済み。StudentEntered 発火ロジックは
-`tests/observer/state-inferrer.test.ts` で網羅。
+`StudentEntered` は `transcript-parser.ts` が `{type: 'progress', subtype: 'agent_progress', parentToolUseID, agentId, event}` レコードを `ProgressDetected` としてパースし、`StateInferrer.handleProgress` が `StudentSpawned` イベントを emit、`WsBroadcaster` が `StudentEntered` WS メッセージに変換することで発火する。
 
-**ただし、実 Claude Code セッションで Task tool 経由の sub-agent が生徒として表示されるかは手動確認が必要。**
+smoke test では `progress/agent_progress` レコードをファイルに追記し、WS クライアントで `StudentEntered` メッセージを受信することを統合テストとして確認している。`tests/observer/state-inferrer.test.ts` でも発火ロジックをユニットテストで網羅。
 
 ## Manual verification (手動確認が必要な項目)
 
