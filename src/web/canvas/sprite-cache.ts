@@ -10,8 +10,15 @@ export class SpriteCache {
     if (pending) return pending;
     const p = new Promise<HTMLImageElement>((resolve, reject) => {
       const img = new Image();
-      img.onload = () => { this.cache.set(src, img); resolve(img); };
-      img.onerror = reject;
+      img.onload = () => {
+        this.cache.set(src, img);
+        this.promises.delete(src);
+        resolve(img);
+      };
+      img.onerror = (err) => {
+        this.promises.delete(src);
+        reject(err);
+      };
       img.src = src;
     });
     this.promises.set(src, p);

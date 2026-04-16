@@ -23,10 +23,17 @@ const STATE_COLOR: Record<AgentState, string> = {
 };
 
 export async function preload(): Promise<void> {
-  await Promise.all([
+  const results = await Promise.allSettled([
     sharedCache.load(TILESET_SRC),
     ...CHAR_SRCS.map((s) => sharedCache.load(s)),
   ]);
+  const sources = [TILESET_SRC, ...CHAR_SRCS];
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i]!;
+    if (r.status === 'rejected') {
+      console.warn('[renderer] failed to load sprite', { src: sources[i], err: r.reason });
+    }
+  }
 }
 
 export function renderClassroom(
