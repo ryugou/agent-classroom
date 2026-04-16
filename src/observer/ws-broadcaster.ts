@@ -32,6 +32,8 @@ export class Broadcaster {
           this.broadcast({ type: 'Toast', level: 'warn', message: `教室が全て埋まっています (session=${ev.sessionId})。config で classroomCount を増やして再起動してください。` });
           return;
         }
+        const existing = this.snapshot.classrooms.find((c) => c.id === res.classroomId);
+        if (existing?.occupant?.sessionId === ev.sessionId) return; // already announced
         this.patchSnapshot(res.classroomId, (c) => ({
           ...c,
           occupant: { sessionId: ev.sessionId, teacherState: 'idle', students: [] },
@@ -41,7 +43,7 @@ export class Broadcaster {
       }
       case 'SessionEnded': {
         const cid = this.manager.classroomOf(ev.sessionId);
-        if (!cid) return;
+        if (!cid) return; // stale event after session ended — ignore
         this.manager.release(ev.sessionId);
         this.patchSnapshot(cid, (c) => ({ ...c, occupant: null }));
         this.broadcast({ type: 'TeacherLeft', classroomId: cid, sessionId: ev.sessionId });
@@ -49,7 +51,9 @@ export class Broadcaster {
       }
       case 'StudentSpawned': {
         const cid = this.manager.classroomOf(ev.sessionId);
-        if (!cid) return;
+        if (!cid) return; // stale event after session ended — ignore
+        const classroom = this.snapshot.classrooms.find((c) => c.id === cid);
+        if (!classroom?.occupant) return;
         this.patchSnapshot(cid, (c) => {
           if (!c.occupant) return c;
           return { ...c, occupant: { ...c.occupant, students: [...c.occupant.students, { id: ev.studentId, state: 'active' }] } };
@@ -59,7 +63,9 @@ export class Broadcaster {
       }
       case 'StudentDespawned': {
         const cid = this.manager.classroomOf(ev.sessionId);
-        if (!cid) return;
+        if (!cid) return; // stale event after session ended — ignore
+        const classroom = this.snapshot.classrooms.find((c) => c.id === cid);
+        if (!classroom?.occupant) return;
         this.patchSnapshot(cid, (c) => {
           if (!c.occupant) return c;
           return { ...c, occupant: { ...c.occupant, students: c.occupant.students.filter((s) => s.id !== ev.studentId) } };
@@ -69,7 +75,9 @@ export class Broadcaster {
       }
       case 'StateChanged': {
         const cid = this.manager.classroomOf(ev.sessionId);
-        if (!cid) return;
+        if (!cid) return; // stale event after session ended — ignore
+        const classroom = this.snapshot.classrooms.find((c) => c.id === cid);
+        if (!classroom?.occupant) return; // no teacher/students to change state for
         this.patchSnapshot(cid, (c) => {
           if (!c.occupant) return c;
           if (ev.target === 'teacher') return { ...c, occupant: { ...c.occupant, teacherState: ev.state } };
