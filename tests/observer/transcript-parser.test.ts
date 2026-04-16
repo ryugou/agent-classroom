@@ -79,4 +79,9 @@ describe('parseLine', () => {
     expect(parseLine('not json')).toEqual([]);
     expect(parseLine('')).toEqual([]);
   });
+
+  it('returns [] for assistant record with empty content array', () => {
+    const line = JSON.stringify({ type: 'assistant', timestamp: 9000, message: { content: [] } });
+    expect(parseLine(line)).toEqual([]);
+  });
 });

@@ -11,6 +11,7 @@ export function parseLine(line: string): ParsedRecord[] {
   try { rec = JSON.parse(line); } catch { return []; }
   if (typeof rec !== 'object' || rec === null) return [];
   const r = rec as Record<string, unknown>;
+  // fallback to parse-time if record lacks a numeric timestamp (e.g. malformed live stream)
   const at = typeof r.timestamp === 'number' ? r.timestamp : Date.now();
 
   if (r.type === 'assistant') return parseAssistant(r, at);
@@ -34,7 +35,7 @@ function parseAssistant(r: Record<string, unknown>, at: number): ParsedRecord[] 
       anyToolUse = true;
     }
   }
-  if (!anyToolUse) out.push({ kind: 'TextOnlyAssistant', at });
+  if (!anyToolUse && content.length > 0) out.push({ kind: 'TextOnlyAssistant', at });
   return out;
 }
 
