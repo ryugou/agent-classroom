@@ -13,6 +13,26 @@ interface Props {
   style?: CSSProperties;
 }
 
+/** encoded-cwd (e.g. "-Users-ryugo-Developer-src-personal-agent-classroom") → readable project name */
+function formatProjectName(encodedCwd: string | undefined): string {
+  if (!encodedCwd) return 'empty';
+  // Split by common path-like segments: uppercase letter after a dash often marks a new directory
+  // Best-effort: take the last meaningful segment(s) from the encoded path
+  const parts = encodedCwd.replace(/^-/, '').split('-');
+  // Walk backwards to find the project name (last non-trivial segment group)
+  // Heuristic: find the last segment that follows a known dir pattern (src, Developer, etc.)
+  const markers = ['src', 'Developer', 'projects', 'AI'];
+  let startIdx = 0;
+  for (let i = parts.length - 1; i >= 0; i--) {
+    if (markers.includes(parts[i]!)) {
+      startIdx = i + 1;
+      break;
+    }
+  }
+  const projectParts = parts.slice(startIdx);
+  return projectParts.length > 0 ? projectParts.join('-') : parts.slice(-2).join('-');
+}
+
 function hash(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
@@ -105,8 +125,8 @@ export function Classroom({ classroom, templates, preloaded, style }: Props) {
   return (
     <section className="classroom" style={style}>
       <header>
-        <span>{classroom.id}</span>
-        <span>{classroom.occupant?.sessionId ?? 'empty'}</span>
+        <span>{formatProjectName(classroom.occupant?.cwd)}</span>
+        <span>{classroom.occupant ? classroom.occupant.teacherState : 'empty'}</span>
       </header>
       <canvas
         ref={ref}

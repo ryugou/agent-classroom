@@ -8,6 +8,7 @@ export interface ClassroomSnapshot {
   layoutTemplateId: string;
   occupant: {
     sessionId: SessionId;
+    cwd: string;
     teacherState: AgentState;
     students: { id: StudentId; state: AgentState }[];
   } | null;

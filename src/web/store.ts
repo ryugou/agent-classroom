@@ -43,7 +43,7 @@ export function createStore(): Store {
       case 'TeacherEntered':
         patchClassroom(msg.classroomId, (c) => ({
           ...c,
-          occupant: { sessionId: msg.sessionId, teacherState: 'idle', students: [] },
+          occupant: { sessionId: msg.sessionId, cwd: msg.cwd, teacherState: 'idle', students: [] },
         }));
         break;
       case 'TeacherLeft':

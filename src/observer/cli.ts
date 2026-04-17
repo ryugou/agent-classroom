@@ -20,11 +20,11 @@ import type { SchoolhouseSnapshot } from '../shared/ws-messages.js';
 //  Col:  0    1    2    3    4    5    6    7    8    9
 // Row 0: [10] [10] [10] [20] [21] [10] [10] [10] [10] [10]   ← wall + window
 // Row 1: [12] [12] [30] [31] [32] [12] [12] [40] [41] [12]   ← wall mid + blackboard + bookshelf
-// Row 2: [ 0] [ 0] [50] [ 0] [50] [ 0] [50] [ 0] [ 0] [ 0]   ← desk row (desks at 2,4,6)
-// Row 3: [ 0] [ 0] [ 0] [ 0] [ 0] [ 0] [ 0] [ 0] [ 0] [ 0]   ← seat row (students face the board)
-// Row 4: [ 0] [ 1] [ 0] [ 1] [ 0] [ 1] [ 0] [ 1] [ 0] [ 0]   ← open floor (checkerboard)
-// Row 5: [ 0] [ 0] [ 0] [ 0] [50] [ 0] [ 0] [ 0] [ 0] [ 0]   ← teacher desk at col 4; teacher stands col 5
-// Row 6: [ 0] [ 1] [ 0] [ 1] [ 0] [ 1] [ 0] [ 1] [ 0] [ 0]   ← entrance floor
+// Row 2: [ 3] [ 3] [50] [ 3] [50] [ 3] [50] [ 3] [ 3] [ 3]   ← desk row (desks at 2,4,6)
+// Row 3: [ 3] [ 4] [ 3] [ 4] [ 3] [ 4] [ 3] [ 4] [ 3] [ 3]   ← seat row (students face the board)
+// Row 4: [ 4] [ 3] [ 4] [ 3] [ 4] [ 3] [ 4] [ 3] [ 4] [ 3]   ← open floor
+// Row 5: [ 3] [ 3] [ 3] [ 3] [50] [ 3] [ 3] [ 3] [ 3] [ 3]   ← teacher desk at col 4; teacher stands col 5
+// Row 6: [ 4] [ 3] [ 4] [ 3] [ 4] [ 3] [ 4] [ 3] [ 4] [ 3]   ← entrance floor
 //
 // Seats (walkable floor tiles where students stand, in front of their desks):
 //   Row 3 cols 2, 4, 6  — in front of the desk tiles in row 2
@@ -39,16 +39,16 @@ const DEFAULT_TEMPLATE: LayoutTemplate = {
     10, 10, 10, 20, 21, 10, 10, 10, 10, 10,
     // Row 1: Wall mid + blackboard (cols 2-4) + bookshelf (cols 7-8)
     12, 12, 30, 31, 32, 12, 12, 40, 41, 12,
-    // Row 2: Student desks at cols 2, 4, 6 — tile 50 (non-walkable)
-     0,  0, 50,  0, 50,  0, 50,  0,  0,  0,
+    // Row 2: Student desks at cols 2, 4, 6 — tile 50 (non-walkable); floor = 3 (warm)
+     3,  3, 50,  3, 50,  3, 50,  3,  3,  3,
     // Row 3: All floor — students sit here (seats at cols 2, 4, 6)
-     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-    // Row 4: Open floor (checkerboard) — second seat row at cols 2, 4, 6
-     0,  1,  0,  1,  0,  1,  0,  1,  0,  0,
+     3,  4,  3,  4,  3,  4,  3,  4,  3,  3,
+    // Row 4: Open floor — second seat row at cols 2, 4, 6
+     4,  3,  4,  3,  4,  3,  4,  3,  4,  3,
     // Row 5: Teacher desk at col 4 — teacher stands at col 5 (floor)
-     0,  0,  0,  0, 50,  0,  0,  0,  0,  0,
-    // Row 6: Entrance floor (checkerboard)
-     0,  1,  0,  1,  0,  1,  0,  1,  0,  0,
+     3,  3,  3,  3, 50,  3,  3,  3,  3,  3,
+    // Row 6: Entrance floor
+     4,  3,  4,  3,  4,  3,  4,  3,  4,  3,
   ],
   seats: [
     // Front-row seats — floor tiles directly below each desk (row 2)

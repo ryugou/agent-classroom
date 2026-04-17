@@ -1,4 +1,4 @@
-import { basename } from 'node:path';
+import { basename, dirname } from 'node:path';
 import type { SourceAdapter } from './adapter.js';
 import type { ObservationEvent } from '../../shared/events.js';
 import { asSessionId } from '../../shared/ids.js';
@@ -48,8 +48,8 @@ export class HostSource implements SourceAdapter {
 
   private handleAdded(path: string): void {
     const sessionId = asSessionId(basename(path, '.jsonl'));
-    // TODO Phase 2: populate cwd from project directory name (currently '' placeholder).
-    this.emit({ type: 'SessionStarted', sessionId, cwd: '', startedAt: Date.now() });
+    const encodedCwd = basename(dirname(path));
+    this.emit({ type: 'SessionStarted', sessionId, cwd: encodedCwd, startedAt: Date.now() });
     const inf = new StateInferrer({
       sessionId,
       emit: (e) => this.emit(e),
