@@ -85,6 +85,18 @@ describe('store', () => {
     expect(s.getState().classrooms[0]!.occupant?.sessionId).toBe('current');
   });
 
+  it('preserves existing students on TeacherEntered (promotion)', () => {
+    const s = createStore();
+    s.apply(list);
+    s.apply({ type: 'TeacherEntered', classroomId: id0, sessionId: asSessionId('leader'), cwd: 'proj' });
+    s.apply({ type: 'StudentEntered', classroomId: id0, studentId: asStudentId('stu1') });
+    // Promotion: new teacher enters same classroom
+    s.apply({ type: 'TeacherEntered', classroomId: id0, sessionId: asSessionId('promoted'), cwd: 'proj' });
+    // Student should still be there
+    expect(s.getState().classrooms[0]!.occupant?.students).toHaveLength(1);
+    expect(s.getState().classrooms[0]!.occupant?.sessionId).toBe('promoted');
+  });
+
   it('TeacherLeft with matching sessionId clears occupant', () => {
     const s = createStore();
     s.apply(list);

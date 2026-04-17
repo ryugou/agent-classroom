@@ -15,16 +15,46 @@ import { logger } from './logger.js';
 import type { LayoutTemplate } from '../shared/persistence.js';
 import type { SchoolhouseSnapshot } from '../shared/ws-messages.js';
 
+// Classroom layout (10 cols × 7 rows)
+//
+//  Col:  0    1    2    3    4    5    6    7    8    9
+// Row 0: [10] [10] [10] [30] [31] [10] [10] [10] [40] [41]   ← wall + blackboard + bookshelf
+// Row 1: [11] [11] [20] [21] [11] [20] [21] [11] [11] [11]   ← lower wall + windows
+// Row 2: [ 3] [50] [50] [ 3] [50] [50] [ 3] [50] [50] [ 3]   ← desk row 1
+// Row 3: [ 3] [ 3] [ 3] [ 3] [ 3] [ 3] [ 3] [ 3] [ 3] [ 3]   ← student seats
+// Row 4: [ 3] [50] [50] [ 3] [50] [50] [ 3] [50] [50] [ 3]   ← desk row 2
+// Row 5: [ 3] [ 3] [ 3] [ 3] [50] [ 3] [ 3] [ 3] [ 3] [ 3]   ← teacher desk
+// Row 6: [ 3] [ 4] [ 3] [ 4] [ 3] [ 4] [ 3] [ 4] [ 3] [ 4]   ← entrance
+//
+// Seats: Row 3 cols 1, 2, 4, 5, 7, 8
+// Teacher stands at (row 5, col 5)
 const DEFAULT_TEMPLATE: LayoutTemplate = {
   id: 'default',
   cols: 10,
   rows: 7,
-  tiles: Array(70).fill(1),
-  seats: [
-    { row: 2, col: 2 }, { row: 2, col: 4 }, { row: 2, col: 6 },
-    { row: 3, col: 2 }, { row: 3, col: 4 }, { row: 3, col: 6 },
+  tiles: [
+    // Row 0: Wall (warm brown) + blackboard center + bookshelf right
+    10, 10, 10, 30, 31, 10, 10, 10, 40, 41,
+    // Row 1: Wall lower (transition) + window
+    11, 11, 20, 21, 11, 20, 21, 11, 11, 11,
+    // Row 2: Desk row 1 — desks at cols 1,2 / 4,5 / 7,8
+     3, 50, 50,  3, 50, 50,  3, 50, 50,  3,
+    // Row 3: Floor — student seats (in front of desks)
+     3,  3,  3,  3,  3,  3,  3,  3,  3,  3,
+    // Row 4: Desk row 2
+     3, 50, 50,  3, 50, 50,  3, 50, 50,  3,
+    // Row 5: Floor — teacher area + teacher desk at col 4
+     3,  3,  3,  3, 50,  3,  3,  3,  3,  3,
+    // Row 6: Floor — entrance
+     3,  4,  3,  4,  3,  4,  3,  4,  3,  4,
   ],
-  teacherDesk: { row: 5, col: 4 },
+  seats: [
+    // Seats in row 3 (floor between desk rows 2 and 4) — 3 pairs
+    { row: 3, col: 1 }, { row: 3, col: 2 }, { row: 3, col: 4 },
+    { row: 3, col: 5 }, { row: 3, col: 7 }, { row: 3, col: 8 },
+  ],
+  // Teacher stands on floor tile to the right of the teacher desk furniture
+  teacherDesk: { row: 5, col: 5 },
 };
 
 export async function main(argv: string[], env: NodeJS.ProcessEnv): Promise<number> {

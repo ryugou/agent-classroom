@@ -20,7 +20,8 @@ export class StateInferrer {
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private permissionTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly students = new Map<string, StudentId>();
-  private readonly pendingTools = new Map<string, string>();  // toolUseId → toolName; never drained if session killed mid-tool (acceptable for Phase 1)
+  private readonly pendingTools = new Map<string, string>();  // toolUseId → toolName; not drained if session killed mid-tool (bounded per session lifetime)
+  private readonly backgroundAgents = new Set<string>();  // toolUseIds of background Agent dispatches
 
   constructor(opts: StateInferrerOptions) {
     this.opts = opts;
@@ -39,6 +40,18 @@ export class StateInferrer {
     switch (record.kind) {
       case 'ToolUseDetected':
         this.pendingTools.set(record.toolUseId, record.toolName);
+        if (record.toolName === 'Agent') {
+          this.opts.emit({
+            type: 'StudentSpawned',
+            sessionId: this.opts.sessionId,
+            studentId: asStudentId(record.toolUseId),
+            parentToolUseId: record.toolUseId,
+            spawnedAt: record.at,
+          });
+          if (record.isBackground) {
+            this.backgroundAgents.add(record.toolUseId);
+          }
+        }
         this.setState('active', record.at);
         break;
       case 'TurnDurationDetected':
@@ -54,6 +67,19 @@ export class StateInferrer {
         this.clearPermissionTimer();
         const toolName = this.pendingTools.get(record.toolUseId);
         this.pendingTools.delete(record.toolUseId);
+        if (toolName === 'Agent') {
+          if (!this.backgroundAgents.has(record.toolUseId)) {
+            // Foreground agent completed → despawn immediately
+            this.opts.emit({
+              type: 'StudentDespawned',
+              sessionId: this.opts.sessionId,
+              studentId: asStudentId(record.toolUseId),
+              despawnedAt: record.at,
+            });
+          }
+          // Background agent: don't despawn here, wait for BackgroundAgentCompleted
+          break;
+        }
         if (toolName !== undefined && !EXEMPT_TOOLS.has(toolName)) {
           this.permissionTimer = setTimeout(
             () => this.setState('permission', this.opts.now()),
@@ -62,6 +88,17 @@ export class StateInferrer {
         }
         break;
       }
+      case 'BackgroundAgentCompleted':
+        if (this.backgroundAgents.has(record.toolUseId)) {
+          this.backgroundAgents.delete(record.toolUseId);
+          this.opts.emit({
+            type: 'StudentDespawned',
+            sessionId: this.opts.sessionId,
+            studentId: asStudentId(record.toolUseId),
+            despawnedAt: record.at,
+          });
+        }
+        break;
       case 'ProgressDetected':
         this.handleProgress(record);
         break;
@@ -120,5 +157,6 @@ export class StateInferrer {
     this.clearTimers();
     this.pendingTools.clear();
     this.students.clear();
+    this.backgroundAgents.clear();
   }
 }

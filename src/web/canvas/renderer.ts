@@ -1,11 +1,11 @@
-import type { ClassroomSnapshot } from '../../shared/ws-messages.js';
 import type { LayoutTemplate } from '../../shared/persistence.js';
 import type { AgentState } from '../../shared/events.js';
+import type { Character } from './characters.js';
 import { drawTile, TILE_PX } from './tile-map.js';
 import { sharedCache } from './sprite-cache.js';
 
 const TILESET_SRC = '/assets/cool-school-tileset.png';
-const CHAR_SRCS = [
+export const CHAR_SRCS = [
   '/assets/characters/char-0085.png',
   '/assets/characters/char-0086.png',
   '/assets/characters/char-0088.png',
@@ -35,10 +35,17 @@ export async function preload(): Promise<void> {
   }
 }
 
-export function renderClassroom(
+function drawStateBadge(ctx: CanvasRenderingContext2D, x: number, y: number, state: AgentState): void {
+  ctx.fillStyle = STATE_COLOR[state];
+  ctx.beginPath();
+  ctx.arc(x + TILE_PX - 2, y + 2, 2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+export function renderFrame(
   ctx: CanvasRenderingContext2D,
   template: LayoutTemplate,
-  snapshot: ClassroomSnapshot,
+  characters: Character[],
 ): void {
   const sheet = sharedCache.get(TILESET_SRC);
   if (!sheet) return;
@@ -51,43 +58,39 @@ export function renderClassroom(
     }
   }
 
-  if (!snapshot.occupant) return;
-  const occ = snapshot.occupant;
+  // Z-sort by Y
+  const sorted = [...characters].sort((a, b) => a.pos.y - b.pos.y);
 
-  const teacher = sharedCache.get(CHAR_SRCS[0]!);
-  if (teacher) {
-    const tx = template.teacherDesk.col * TILE_PX;
-    const ty = template.teacherDesk.row * TILE_PX;
-    ctx.drawImage(teacher, tx, ty);
-    drawStateBadge(ctx, tx, ty, occ.teacherState);
+  for (const ch of sorted) {
+    const img = sharedCache.get(CHAR_SRCS[ch.charSpriteIndex]!);
+    if (!img) continue;
+    const drawX = Math.round(ch.pos.x);
+    const drawY = Math.round(ch.pos.y + ch.bounceOffsetY);
+    ctx.drawImage(img, drawX, drawY);
+    drawStateBadge(ctx, drawX, drawY, ch.agentState);
+    if (ch.showBubble) {
+      drawSpeechBubble(ctx, drawX, drawY);
+    }
   }
-
-  if (template.seats.length === 0) {
-    // No seats defined in this layout — skip rendering students entirely.
-    return;
-  }
-  occ.students.forEach((student, i) => {
-    const seat = template.seats[i % template.seats.length];
-    if (!seat) return;
-    const charIdx = (hash(student.id) % (CHAR_SRCS.length - 1)) + 1;  // teacher と別の 1..6
-    const img = sharedCache.get(CHAR_SRCS[charIdx]!);
-    if (!img) return;
-    const sx = seat.col * TILE_PX;
-    const sy = seat.row * TILE_PX;
-    ctx.drawImage(img, sx, sy);
-    drawStateBadge(ctx, sx, sy, student.state);
-  });
 }
 
-function drawStateBadge(ctx: CanvasRenderingContext2D, x: number, y: number, state: AgentState): void {
-  ctx.fillStyle = STATE_COLOR[state];
+function drawSpeechBubble(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  const bx = x + TILE_PX / 2;
+  const by = y - 6;
+  ctx.fillStyle = '#ffffff';
   ctx.beginPath();
-  ctx.arc(x + TILE_PX - 2, y + 2, 2, 0, Math.PI * 2);
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(bx - 5, by - 8, 10, 10, 2);
+  } else {
+    ctx.rect(bx - 5, by - 8, 10, 10);
+  }
   ctx.fill();
-}
-
-function hash(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
+  ctx.strokeStyle = '#f44336';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+  ctx.fillStyle = '#f44336';
+  ctx.font = 'bold 7px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('!', bx, by - 3);
 }

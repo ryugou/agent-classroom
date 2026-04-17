@@ -17,7 +17,7 @@ describe('StateInferrer', () => {
 
   it('ToolUseDetected → StateChanged(active)', () => {
     const inf = makeInferrer();
-    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', at: 100 });
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', isBackground: false, at: 100 });
     expect(events).toContainEqual(expect.objectContaining({ type: 'StateChanged', state: 'active' }));
   });
 
@@ -38,7 +38,7 @@ describe('StateInferrer', () => {
     const inf = makeInferrer();
     inf.ingest({ kind: 'TextOnlyAssistant', at: 300 });
     vi.advanceTimersByTime(2000);
-    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_x', toolName: 'Bash', at: 2300 });
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_x', toolName: 'Bash', isBackground: false, at: 2300 });
     vi.advanceTimersByTime(5000);
     const idles = events.filter((e) => e.type === 'StateChanged' && e.state === 'idle');
     expect(idles).toHaveLength(0);
@@ -47,7 +47,7 @@ describe('StateInferrer', () => {
 
   it('non-exempt tool_result + 7s silence → permission', () => {
     const inf = makeInferrer();
-    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', at: 400 });
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', isBackground: false, at: 400 });
     inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_1', at: 450 });
     vi.advanceTimersByTime(7000);
     expect(events).toContainEqual(expect.objectContaining({ type: 'StateChanged', state: 'permission' }));
@@ -55,7 +55,7 @@ describe('StateInferrer', () => {
 
   it('exempt tool_result does not trigger permission', () => {
     const inf = makeInferrer();
-    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_2', toolName: 'Read', at: 500 });
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_2', toolName: 'Read', isBackground: false, at: 500 });
     inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_2', at: 550 });
     vi.advanceTimersByTime(7000);
     const perms = events.filter((e) => e.type === 'StateChanged' && e.state === 'permission');
@@ -64,7 +64,7 @@ describe('StateInferrer', () => {
 
   it('permission timer survives unrelated ProgressDetected events', () => {
     const inf = makeInferrer();
-    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', at: 0 });
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', isBackground: false, at: 0 });
     inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_1', at: 50 });
     // Simulate sub-agent activity while the 7s permission timer is counting down
     inf.ingest({ kind: 'ProgressDetected', parentToolUseId: 'tu_1', agentId: 'sub_a', event: 'tool_use', at: 100 });
@@ -83,7 +83,7 @@ describe('StateInferrer', () => {
 
   it('cancels pending permission timer when TurnDurationDetected arrives', () => {
     const inf = makeInferrer();
-    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', at: 0 });
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', isBackground: false, at: 0 });
     inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_1', at: 50 });
     // TurnDurationDetected fires before the 7s timer
     inf.ingest({ kind: 'TurnDurationDetected', at: 100 });
@@ -95,7 +95,7 @@ describe('StateInferrer', () => {
 
   it('cancels pending permission timer when TextOnlyAssistant arrives', () => {
     const inf = makeInferrer();
-    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', at: 0 });
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', isBackground: false, at: 0 });
     inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_1', at: 50 });
     inf.ingest({ kind: 'TextOnlyAssistant', at: 100 });
     vi.advanceTimersByTime(10_000);
@@ -111,12 +111,47 @@ describe('StateInferrer', () => {
     expect(events).toContainEqual(expect.objectContaining({ type: 'StudentDespawned' }));
   });
 
+  it('Agent tool_use → StudentSpawned with toolUseId as studentId', () => {
+    const inf = makeInferrer();
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_agent_1', toolName: 'Agent', isBackground: false, at: 800 });
+    const spawns = events.filter((e) => e.type === 'StudentSpawned');
+    expect(spawns).toHaveLength(1);
+    expect(spawns[0]).toMatchObject({
+      type: 'StudentSpawned',
+      sessionId,
+      studentId: 'tu_agent_1',
+      parentToolUseId: 'tu_agent_1',
+      spawnedAt: 800,
+    });
+  });
+
+  it('Agent tool_result → StudentDespawned', () => {
+    const inf = makeInferrer();
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_agent_2', toolName: 'Agent', isBackground: false, at: 900 });
+    inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_agent_2', at: 1000 });
+    const despawns = events.filter((e) => e.type === 'StudentDespawned');
+    expect(despawns).toHaveLength(1);
+    expect(despawns[0]).toMatchObject({
+      type: 'StudentDespawned',
+      sessionId,
+      studentId: 'tu_agent_2',
+      despawnedAt: 1000,
+    });
+  });
+
+  it('non-Agent tool_use does not emit StudentSpawned', () => {
+    const inf = makeInferrer();
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_bash', toolName: 'Bash', isBackground: false, at: 1100 });
+    const spawns = events.filter((e) => e.type === 'StudentSpawned');
+    expect(spawns).toHaveLength(0);
+  });
+
   it('cancels pending permission timer when a new ToolResultDetected arrives', () => {
     const inf = makeInferrer();
-    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', at: 0 });
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', isBackground: false, at: 0 });
     inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_1', at: 50 });
     // Second non-exempt tool before the 7s timer fires
-    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_2', toolName: 'Edit', at: 1000 });
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_2', toolName: 'Edit', isBackground: false, at: 1000 });
     inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_2', at: 1050 });
     vi.advanceTimersByTime(6500);
     // The first timer (tu_1) would have fired at 7000ms had it not been cancelled
@@ -130,13 +165,59 @@ describe('StateInferrer', () => {
 
   it('cancels pending permission timer when an exempt ToolResultDetected arrives', () => {
     const inf = makeInferrer();
-    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', at: 0 });
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', isBackground: false, at: 0 });
     inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_1', at: 50 });
     // Exempt tool's result should cancel the pending non-exempt permission timer
-    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_2', toolName: 'Read', at: 1000 });
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_2', toolName: 'Read', isBackground: false, at: 1000 });
     inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_2', at: 1050 });
     vi.advanceTimersByTime(10_000);
     const permissions = events.filter((e) => e.type === 'StateChanged' && e.state === 'permission');
     expect(permissions).toHaveLength(0);
+  });
+
+  it('does not despawn background Agent on immediate tool_result, despawns on BackgroundAgentCompleted', () => {
+    const inf = makeInferrer();
+    // Background Agent dispatch
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_bg', toolName: 'Agent', isBackground: true, at: 0 });
+    expect(events).toContainEqual(expect.objectContaining({ type: 'StudentSpawned' }));
+
+    // Immediate ack tool_result — should NOT despawn
+    inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_bg', at: 3 });
+    const despawnsAfterAck = events.filter((e) => e.type === 'StudentDespawned');
+    expect(despawnsAfterAck).toHaveLength(0);
+
+    // Real completion via queue-operation
+    inf.ingest({ kind: 'BackgroundAgentCompleted', toolUseId: 'tu_bg', at: 10000 });
+    const despawnsAfterComplete = events.filter((e) => e.type === 'StudentDespawned');
+    expect(despawnsAfterComplete).toHaveLength(1);
+    expect(despawnsAfterComplete[0]).toMatchObject({
+      type: 'StudentDespawned',
+      sessionId,
+      studentId: 'tu_bg',
+      despawnedAt: 10000,
+    });
+  });
+
+  it('despawns foreground Agent normally on tool_result', () => {
+    const inf = makeInferrer();
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_fg', toolName: 'Agent', isBackground: false, at: 0 });
+    expect(events).toContainEqual(expect.objectContaining({ type: 'StudentSpawned' }));
+
+    inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_fg', at: 5000 });
+    const despawns = events.filter((e) => e.type === 'StudentDespawned');
+    expect(despawns).toHaveLength(1);
+    expect(despawns[0]).toMatchObject({
+      type: 'StudentDespawned',
+      sessionId,
+      studentId: 'tu_fg',
+      despawnedAt: 5000,
+    });
+  });
+
+  it('BackgroundAgentCompleted for unknown toolUseId does nothing', () => {
+    const inf = makeInferrer();
+    inf.ingest({ kind: 'BackgroundAgentCompleted', toolUseId: 'tu_unknown', at: 5000 });
+    const despawns = events.filter((e) => e.type === 'StudentDespawned');
+    expect(despawns).toHaveLength(0);
   });
 });

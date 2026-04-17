@@ -1,9 +1,10 @@
 export type ParsedRecord =
-  | { kind: 'ToolUseDetected'; toolUseId: string; toolName: string; at: number }
+  | { kind: 'ToolUseDetected'; toolUseId: string; toolName: string; isBackground: boolean; at: number }
   | { kind: 'ToolResultDetected'; toolUseId: string; at: number }
   | { kind: 'TextOnlyAssistant'; at: number }
   | { kind: 'ProgressDetected'; parentToolUseId: string; agentId: string; event: string; at: number }
-  | { kind: 'TurnDurationDetected'; at: number };
+  | { kind: 'TurnDurationDetected'; at: number }
+  | { kind: 'BackgroundAgentCompleted'; toolUseId: string; at: number };
 
 export function parseLine(line: string): ParsedRecord[] {
   if (!line.trim()) return [];
@@ -18,6 +19,7 @@ export function parseLine(line: string): ParsedRecord[] {
   if (r.type === 'user') return parseUser(r, at);
   if (r.type === 'progress' && r.subtype === 'agent_progress') return parseProgress(r, at);
   if (r.type === 'system' && r.subtype === 'turn_duration') return [{ kind: 'TurnDurationDetected', at }];
+  if (r.type === 'queue-operation' && r.operation === 'enqueue') return parseQueueEnqueue(r, at);
   return [];
 }
 
@@ -31,7 +33,9 @@ function parseAssistant(r: Record<string, unknown>, at: number): ParsedRecord[] 
     if (typeof block !== 'object' || block === null) continue;
     const b = block as Record<string, unknown>;
     if (b.type === 'tool_use' && typeof b.id === 'string' && typeof b.name === 'string') {
-      out.push({ kind: 'ToolUseDetected', toolUseId: b.id, toolName: b.name, at });
+      const input = b.input as Record<string, unknown> | undefined;
+      const isBackground = input?.run_in_background === true;
+      out.push({ kind: 'ToolUseDetected', toolUseId: b.id, toolName: b.name, isBackground, at });
       anyToolUse = true;
     }
   }
@@ -65,4 +69,11 @@ function parseProgress(r: Record<string, unknown>, at: number): ParsedRecord[] {
     event: r.event,
     at,
   }];
+}
+
+function parseQueueEnqueue(r: Record<string, unknown>, at: number): ParsedRecord[] {
+  const content = typeof r.content === 'string' ? r.content : '';
+  const match = content.match(/<tool-use-id>(.*?)<\/tool-use-id>/);
+  if (!match) return [];
+  return [{ kind: 'BackgroundAgentCompleted', toolUseId: match[1]!, at }];
 }
