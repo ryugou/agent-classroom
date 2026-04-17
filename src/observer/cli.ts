@@ -35,26 +35,25 @@ const DEFAULT_TEMPLATE: LayoutTemplate = {
   cols: 10,
   rows: 7,
   tiles: [
-    // Row 0: Wall upper + window (cols 3-4)
-    10, 10, 10, 20, 21, 10, 10, 10, 10, 10,
-    // Row 1: Wall mid + blackboard (cols 2-4) + bookshelf (cols 7-8)
-    12, 12, 30, 31, 32, 12, 12, 40, 41, 12,
-    // Row 2: Student desks at cols 2, 4, 6 — tile 50 (non-walkable); floor = 3 (warm)
-     3,  3, 50,  3, 50,  3, 50,  3,  3,  3,
-    // Row 3: All floor — students sit here (seats at cols 2, 4, 6)
-     3,  4,  3,  4,  3,  4,  3,  4,  3,  3,
-    // Row 4: Open floor — second seat row at cols 2, 4, 6
-     4,  3,  4,  3,  4,  3,  4,  3,  4,  3,
-    // Row 5: Teacher desk at col 4 — teacher stands at col 5 (floor)
+    // Row 0: Wall (warm brown) + blackboard center + bookshelf right
+    10, 10, 10, 30, 31, 10, 10, 10, 40, 41,
+    // Row 1: Wall lower (transition) + window
+    11, 11, 20, 21, 11, 20, 21, 11, 11, 11,
+    // Row 2: Desk row 1 — desks at cols 1,2 / 4,5 / 7,8
+     3, 50, 50,  3, 50, 50,  3, 50, 50,  3,
+    // Row 3: Floor — student seats (in front of desks)
+     3,  3,  3,  3,  3,  3,  3,  3,  3,  3,
+    // Row 4: Desk row 2
+     3, 50, 50,  3, 50, 50,  3, 50, 50,  3,
+    // Row 5: Floor — teacher area + teacher desk at col 4
      3,  3,  3,  3, 50,  3,  3,  3,  3,  3,
-    // Row 6: Entrance floor
-     4,  3,  4,  3,  4,  3,  4,  3,  4,  3,
+    // Row 6: Floor — entrance
+     3,  4,  3,  4,  3,  4,  3,  4,  3,  4,
   ],
   seats: [
-    // Front-row seats — floor tiles directly below each desk (row 2)
-    { row: 3, col: 2 }, { row: 3, col: 4 }, { row: 3, col: 6 },
-    // Second-row seats — open floor row
-    { row: 4, col: 2 }, { row: 4, col: 4 }, { row: 4, col: 6 },
+    // Seats in row 3 (floor between desk rows 2 and 4) — 3 pairs
+    { row: 3, col: 1 }, { row: 3, col: 2 }, { row: 3, col: 4 },
+    { row: 3, col: 5 }, { row: 3, col: 7 }, { row: 3, col: 8 },
   ],
   // Teacher stands on floor tile to the right of the teacher desk furniture
   teacherDesk: { row: 5, col: 5 },

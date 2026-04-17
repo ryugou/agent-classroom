@@ -2,8 +2,9 @@ export const TILE_PX = 16;
 export const SOURCE_TILE_PX = 48;
 
 export interface TileType {
-  sx: number;
-  sy: number;
+  sx?: number;
+  sy?: number;
+  color?: string;
   walkable: boolean;
 }
 
@@ -26,29 +27,29 @@ const TILE_TYPES: Record<number, TileType> = {
   // [1,4] Pale green floor variant
   6: { sx: 48, sy: 192, walkable: true },
 
-  // ── Wall tiles (NOT walkable) ───────────────────────────────────────
-  // [0,1] Blue wall upper (dark blue, solid wall)
-  10: { sx: 0, sy: 48, walkable: false },
-  // [1,1] Blue wall upper variant
-  11: { sx: 48, sy: 48, walkable: false },
-  // [0,2] Blue wall mid (slightly darker)
-  12: { sx: 0, sy: 96, walkable: false },
-  // [1,2] Blue wall mid variant
-  13: { sx: 48, sy: 96, walkable: false },
+  // ── Wall tiles (NOT walkable) — warm brown/orange tones ──────────────
+  // [2,3] Brown textured wall
+  10: { sx: 96, sy: 144, walkable: false },
+  // [3,3] Brown wall variant
+  11: { sx: 144, sy: 144, walkable: false },
+  // [0,3] Herringbone wall (same as floor but non-walkable for wall row)
+  12: { sx: 0, sy: 144, walkable: false },
+  // [1,3] Diagonal wall variant
+  13: { sx: 48, sy: 144, walkable: false },
 
   // ── Window (NOT walkable) ───────────────────────────────────────────
-  // [3,0] Window tile left
+  // [3,0] Window tile (colorful panes)
   20: { sx: 144, sy: 0, walkable: false },
   // [4,0] Window tile right
   21: { sx: 192, sy: 0, walkable: false },
 
   // ── Blackboard (NOT walkable) ───────────────────────────────────────
-  // [2,3] Blackboard left section
-  30: { sx: 96, sy: 144, walkable: false },
-  // [3,3] Blackboard center
-  31: { sx: 144, sy: 144, walkable: false },
-  // [4,3] Blackboard right section
-  32: { sx: 192, sy: 144, walkable: false },
+  // Green blackboard at row 1 (y=48), cols 3-4
+  30: { sx: 144, sy: 48, walkable: false },
+  // Blackboard right half
+  31: { sx: 192, sy: 48, walkable: false },
+  // Small purple board (row 2, col 3) — used as blackboard accent
+  32: { sx: 144, sy: 96, walkable: false },
 
   // ── Bookshelf (NOT walkable) ────────────────────────────────────────
   // [5,1] Bookshelf top-left
@@ -71,10 +72,10 @@ const TILE_TYPES: Record<number, TileType> = {
   48: { sx: 336, sy: 144, walkable: false },
 
   // ── Desk / Table (NOT walkable) ─────────────────────────────────────
-  // [0,5] Desk surface left
-  50: { sx: 0, sy: 240, walkable: false },
-  // [1,5] Desk surface mid
-  51: { sx: 48, sy: 240, walkable: false },
+  // [0,9] Small desk (individual furniture item, row 9)
+  50: { sx: 0, sy: 432, walkable: false },
+  // [1,9] Small shelf unit
+  51: { sx: 48, sy: 432, walkable: false },
   // [2,5] Desk surface mid-right
   52: { sx: 96, sy: 240, walkable: false },
   // [3,5] Desk surface right
@@ -150,7 +151,12 @@ export function drawTile(
 ): void {
   const t = tileTypeOf(tileId);
   if (!t) return;
-  ctx.drawImage(sheet, t.sx, t.sy, SOURCE_TILE_PX, SOURCE_TILE_PX, dx, dy, TILE_PX, TILE_PX);
+  if (t.color) {
+    ctx.fillStyle = t.color;
+    ctx.fillRect(dx, dy, TILE_PX, TILE_PX);
+  } else if (t.sx !== undefined && t.sy !== undefined) {
+    ctx.drawImage(sheet, t.sx, t.sy, SOURCE_TILE_PX, SOURCE_TILE_PX, dx, dy, TILE_PX, TILE_PX);
+  }
 }
 
 export function buildWalkableGrid(tiles: number[], cols: number, rows: number): boolean[][] {
