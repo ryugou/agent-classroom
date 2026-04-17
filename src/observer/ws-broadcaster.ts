@@ -49,9 +49,12 @@ export class Broadcaster {
         } else {
           // Teammate session → show as student
           const studentId = asStudentId(ev.sessionId);
+          // Dedup: don't add if already present
+          const classroom = this.snapshot.classrooms.find((c) => c.id === res.classroomId);
+          if (classroom?.occupant?.students.some((s) => s.id === studentId)) return;
           this.patchSnapshot(res.classroomId, (c) => {
             if (!c.occupant) return c;
-            return { ...c, occupant: { ...c.occupant, students: [...c.occupant.students, { id: studentId, state: 'active' as AgentState }] } };
+            return { ...c, occupant: { ...c.occupant, students: [...c.occupant.students, { id: studentId, state: 'idle' as AgentState }] } };
           });
           this.broadcast({ type: 'StudentEntered', classroomId: res.classroomId, studentId });
         }

@@ -192,6 +192,25 @@ describe('Broadcaster', () => {
     expect(received).toContainEqual(expect.objectContaining({ type: 'StudentLeft', classroomId: ids[0], studentId: 'teammate' }));
   });
 
+  it('does not duplicate teammate student on repeated SessionStarted', () => {
+    const mgr = new ClassroomManager(ids);
+    const b = new Broadcaster({
+      manager: mgr,
+      layoutFilePath: '/tmp/test.json',
+      initialSnapshot: makeSnapshot(),
+    });
+    const received: WSMessage[] = [];
+    b.subscribe((m) => received.push(m));
+    received.length = 0;
+
+    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('leader'), cwd: 'proj-a', startedAt: 0 });
+    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('teammate'), cwd: 'proj-a', startedAt: 0 });
+    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('teammate'), cwd: 'proj-a', startedAt: 0 }); // duplicate
+
+    const studentEnteredCount = received.filter((m) => m.type === 'StudentEntered').length;
+    expect(studentEnteredCount).toBe(1); // not 2
+  });
+
   it('teacher leaving with students promotes a student to teacher', () => {
     const mgr = new ClassroomManager(ids);
     const b = new Broadcaster({
