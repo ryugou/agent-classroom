@@ -15,16 +15,49 @@ import { logger } from './logger.js';
 import type { LayoutTemplate } from '../shared/persistence.js';
 import type { SchoolhouseSnapshot } from '../shared/ws-messages.js';
 
+// Classroom layout (10 cols × 7 rows)
+//
+//  Col:  0    1    2    3    4    5    6    7    8    9
+// Row 0: [10] [10] [10] [20] [21] [10] [10] [10] [10] [10]   ← wall + window
+// Row 1: [12] [12] [30] [31] [32] [12] [12] [40] [41] [12]   ← wall mid + blackboard + bookshelf
+// Row 2: [ 0] [ 0] [50] [ 0] [50] [ 0] [50] [ 0] [ 0] [ 0]   ← desk row (desks at 2,4,6)
+// Row 3: [ 0] [ 0] [ 0] [ 0] [ 0] [ 0] [ 0] [ 0] [ 0] [ 0]   ← seat row (students face the board)
+// Row 4: [ 0] [ 1] [ 0] [ 1] [ 0] [ 1] [ 0] [ 1] [ 0] [ 0]   ← open floor (checkerboard)
+// Row 5: [ 0] [ 0] [ 0] [ 0] [50] [ 0] [ 0] [ 0] [ 0] [ 0]   ← teacher desk at col 4; teacher stands col 5
+// Row 6: [ 0] [ 1] [ 0] [ 1] [ 0] [ 1] [ 0] [ 1] [ 0] [ 0]   ← entrance floor
+//
+// Seats (walkable floor tiles where students stand, in front of their desks):
+//   Row 3 cols 2, 4, 6  — in front of the desk tiles in row 2
+//   Row 4 cols 2, 4, 6  — second row of seats (open floor)
+// Teacher stands at (row 5, col 5) — floor tile to the right of the teacher desk furniture
 const DEFAULT_TEMPLATE: LayoutTemplate = {
   id: 'default',
   cols: 10,
   rows: 7,
-  tiles: Array(70).fill(1),
-  seats: [
-    { row: 2, col: 2 }, { row: 2, col: 4 }, { row: 2, col: 6 },
-    { row: 3, col: 2 }, { row: 3, col: 4 }, { row: 3, col: 6 },
+  tiles: [
+    // Row 0: Wall upper + window (cols 3-4)
+    10, 10, 10, 20, 21, 10, 10, 10, 10, 10,
+    // Row 1: Wall mid + blackboard (cols 2-4) + bookshelf (cols 7-8)
+    12, 12, 30, 31, 32, 12, 12, 40, 41, 12,
+    // Row 2: Student desks at cols 2, 4, 6 — tile 50 (non-walkable)
+     0,  0, 50,  0, 50,  0, 50,  0,  0,  0,
+    // Row 3: All floor — students sit here (seats at cols 2, 4, 6)
+     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    // Row 4: Open floor (checkerboard) — second seat row at cols 2, 4, 6
+     0,  1,  0,  1,  0,  1,  0,  1,  0,  0,
+    // Row 5: Teacher desk at col 4 — teacher stands at col 5 (floor)
+     0,  0,  0,  0, 50,  0,  0,  0,  0,  0,
+    // Row 6: Entrance floor (checkerboard)
+     0,  1,  0,  1,  0,  1,  0,  1,  0,  0,
   ],
-  teacherDesk: { row: 5, col: 4 },
+  seats: [
+    // Front-row seats — floor tiles directly below each desk (row 2)
+    { row: 3, col: 2 }, { row: 3, col: 4 }, { row: 3, col: 6 },
+    // Second-row seats — open floor row
+    { row: 4, col: 2 }, { row: 4, col: 4 }, { row: 4, col: 6 },
+  ],
+  // Teacher stands on floor tile to the right of the teacher desk furniture
+  teacherDesk: { row: 5, col: 5 },
 };
 
 export async function main(argv: string[], env: NodeJS.ProcessEnv): Promise<number> {
