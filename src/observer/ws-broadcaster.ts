@@ -57,6 +57,7 @@ export class Broadcaster {
             return { ...c, occupant: { ...c.occupant, students: [...c.occupant.students, { id: studentId, state: 'idle' as AgentState }] } };
           });
           this.broadcast({ type: 'StudentEntered', classroomId: res.classroomId, studentId });
+          this.broadcast({ type: 'StateChanged', classroomId: res.classroomId, target: studentId, state: 'idle' });
         }
         break;
       }
@@ -89,6 +90,7 @@ export class Broadcaster {
                 occupant: {
                   ...c.occupant,
                   sessionId: promoted,
+                  teacherState: 'idle',  // reset on promotion
                   students: c.occupant.students.filter((s) => s.id !== promotedStudentId),
                 },
               };
@@ -133,18 +135,51 @@ export class Broadcaster {
         if (!cid) return; // stale event after session ended — ignore
         const classroom = this.snapshot.classrooms.find((c) => c.id === cid);
         if (!classroom?.occupant) return; // no teacher/students to change state for
-        this.patchSnapshot(cid, (c) => {
-          if (!c.occupant) return c;
-          if (ev.target === 'teacher') return { ...c, occupant: { ...c.occupant, teacherState: ev.state } };
-          return {
-            ...c,
-            occupant: {
-              ...c.occupant,
-              students: c.occupant.students.map((s) => (s.id === ev.target ? { ...s, state: ev.state } : s)),
-            },
-          };
-        });
-        this.broadcast({ type: 'StateChanged', classroomId: cid, target: ev.target, state: ev.state });
+
+        // Determine if this session is the classroom's teacher or a teammate student
+        const isTeacher = classroom.occupant.sessionId === ev.sessionId;
+
+        if (ev.target === 'teacher') {
+          if (isTeacher) {
+            // Teacher's own state change — update teacherState
+            this.patchSnapshot(cid, (c) => {
+              if (!c.occupant) return c;
+              return { ...c, occupant: { ...c.occupant, teacherState: ev.state } };
+            });
+            this.broadcast({ type: 'StateChanged', classroomId: cid, target: 'teacher', state: ev.state });
+          } else {
+            // Teammate session's state → route to the student entry
+            const studentId = asStudentId(ev.sessionId);
+            this.patchSnapshot(cid, (c) => {
+              if (!c.occupant) return c;
+              return {
+                ...c,
+                occupant: {
+                  ...c.occupant,
+                  students: c.occupant.students.map((s) =>
+                    s.id === studentId ? { ...s, state: ev.state } : s,
+                  ),
+                },
+              };
+            });
+            this.broadcast({ type: 'StateChanged', classroomId: cid, target: studentId, state: ev.state });
+          }
+        } else {
+          // Sub-agent state change (target is already a StudentId) — forward as-is
+          this.patchSnapshot(cid, (c) => {
+            if (!c.occupant) return c;
+            return {
+              ...c,
+              occupant: {
+                ...c.occupant,
+                students: c.occupant.students.map((s) =>
+                  s.id === ev.target ? { ...s, state: ev.state } : s,
+                ),
+              },
+            };
+          });
+          this.broadcast({ type: 'StateChanged', classroomId: cid, target: ev.target, state: ev.state });
+        }
         break;
       }
     }

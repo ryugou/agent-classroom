@@ -211,6 +211,44 @@ describe('Broadcaster', () => {
     expect(studentEnteredCount).toBe(1); // not 2
   });
 
+  it('routes teammate StateChanged to student, not teacher', () => {
+    const mgr = new ClassroomManager(ids);
+    const b = new Broadcaster({
+      manager: mgr,
+      initialSnapshot: { gridShape: { cols: 2, rows: 1 }, classrooms: ids.map((id, i) => ({ id, gridPos: { row: 0, col: i }, layoutTemplateId: 'default', occupant: null })), layoutTemplates: [tpl] },
+      layoutFilePath: '/tmp/test.json',
+    });
+    const received: WSMessage[] = [];
+    b.subscribe((m) => received.push(m));
+    received.length = 0;
+
+    // Leader enters as teacher
+    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('leader'), cwd: 'proj', startedAt: 0 });
+    // Teammate enters as student
+    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('mate'), cwd: 'proj', startedAt: 0 });
+    received.length = 0;
+
+    // Teammate's state changes to active — should NOT affect teacherState
+    b.ingest({ type: 'StateChanged', sessionId: asSessionId('mate'), target: 'teacher', state: 'active', changedAt: 10 });
+
+    // The StateChanged should target the student, not 'teacher'
+    const sc = received.find((m) => m.type === 'StateChanged');
+    expect(sc).toBeDefined();
+    if (sc?.type === 'StateChanged') {
+      expect(sc.target).not.toBe('teacher');
+    }
+
+    // Verify snapshot: teacherState should still be 'idle', student should be 'active'
+    const later: WSMessage[] = [];
+    b.subscribe((m) => later.push(m));
+    const snap = later[0];
+    if (snap?.type === 'ClassroomList') {
+      expect(snap.snapshot.classrooms[0]!.occupant?.teacherState).toBe('idle');
+      const mateStudent = snap.snapshot.classrooms[0]!.occupant?.students.find(s => s.id === asStudentId('mate'));
+      expect(mateStudent?.state).toBe('active');
+    }
+  });
+
   it('teacher leaving with students promotes a student to teacher', () => {
     const mgr = new ClassroomManager(ids);
     const b = new Broadcaster({
