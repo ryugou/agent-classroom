@@ -1,11 +1,12 @@
 import type { ClassroomSnapshot } from '../../shared/ws-messages.js';
 import type { LayoutTemplate } from '../../shared/persistence.js';
 import type { AgentState } from '../../shared/events.js';
+import type { Character } from './characters.js';
 import { drawTile, TILE_PX } from './tile-map.js';
 import { sharedCache } from './sprite-cache.js';
 
 const TILESET_SRC = '/assets/cool-school-tileset.png';
-const CHAR_SRCS = [
+export const CHAR_SRCS = [
   '/assets/characters/char-0085.png',
   '/assets/characters/char-0086.png',
   '/assets/characters/char-0088.png',
@@ -35,6 +36,7 @@ export async function preload(): Promise<void> {
   }
 }
 
+// Legacy — removed in Task 7 when game loop replaces useEffect rendering
 export function renderClassroom(
   ctx: CanvasRenderingContext2D,
   template: LayoutTemplate,
@@ -90,4 +92,57 @@ function hash(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
   return Math.abs(h);
+}
+
+export function renderFrame(
+  ctx: CanvasRenderingContext2D,
+  template: LayoutTemplate,
+  characters: Character[],
+): void {
+  const sheet = sharedCache.get(TILESET_SRC);
+  if (!sheet) return;
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+  // 1. Draw tiles
+  for (let r = 0; r < template.rows; r++) {
+    for (let c = 0; c < template.cols; c++) {
+      const id = template.tiles[r * template.cols + c] ?? 0;
+      drawTile(ctx, sheet, id, c * TILE_PX, r * TILE_PX);
+    }
+  }
+
+  // 2. Z-sort characters by Y (lower Y drawn first = further back)
+  const sorted = [...characters].sort((a, b) => a.pos.y - b.pos.y);
+
+  // 3. Draw each character
+  for (const ch of sorted) {
+    const img = sharedCache.get(CHAR_SRCS[ch.charSpriteIndex]!);
+    if (!img) continue;
+    const drawX = Math.round(ch.pos.x);
+    const drawY = Math.round(ch.pos.y + ch.bounceOffsetY);
+    ctx.drawImage(img, drawX, drawY);
+    drawStateBadge(ctx, drawX, drawY, ch.agentState);
+    if (ch.showBubble) {
+      drawSpeechBubble(ctx, drawX, drawY);
+    }
+  }
+}
+
+function drawSpeechBubble(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  const bx = x + TILE_PX / 2;
+  const by = y - 6;
+  // Bubble background
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.roundRect(bx - 5, by - 8, 10, 10, 2);
+  ctx.fill();
+  ctx.strokeStyle = '#f44336';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+  // "!" text
+  ctx.fillStyle = '#f44336';
+  ctx.font = 'bold 7px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('!', bx, by - 3);
 }
