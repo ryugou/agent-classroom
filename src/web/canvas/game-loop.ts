@@ -1,4 +1,3 @@
-// src/web/canvas/game-loop.ts
 export interface FrameCallback {
   (dt: number): void;
 }

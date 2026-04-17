@@ -20,7 +20,7 @@ export class StateInferrer {
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private permissionTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly students = new Map<string, StudentId>();
-  private readonly pendingTools = new Map<string, string>();  // toolUseId → toolName; never drained if session killed mid-tool (acceptable for Phase 1)
+  private readonly pendingTools = new Map<string, string>();  // toolUseId → toolName; not drained if session killed mid-tool (bounded per session lifetime)
   private readonly backgroundAgents = new Set<string>();  // toolUseIds of background Agent dispatches
 
   constructor(opts: StateInferrerOptions) {

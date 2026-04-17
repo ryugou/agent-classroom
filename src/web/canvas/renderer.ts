@@ -51,7 +51,6 @@ export function renderFrame(
   if (!sheet) return;
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
-  // 1. Draw tiles
   for (let r = 0; r < template.rows; r++) {
     for (let c = 0; c < template.cols; c++) {
       const id = template.tiles[r * template.cols + c] ?? 0;
@@ -59,10 +58,9 @@ export function renderFrame(
     }
   }
 
-  // 2. Z-sort characters by Y (lower Y drawn first = further back)
+  // Z-sort by Y
   const sorted = [...characters].sort((a, b) => a.pos.y - b.pos.y);
 
-  // 3. Draw each character
   for (const ch of sorted) {
     const img = sharedCache.get(CHAR_SRCS[ch.charSpriteIndex]!);
     if (!img) continue;
@@ -79,7 +77,6 @@ export function renderFrame(
 function drawSpeechBubble(ctx: CanvasRenderingContext2D, x: number, y: number): void {
   const bx = x + TILE_PX / 2;
   const by = y - 6;
-  // Bubble background
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
   ctx.roundRect(bx - 5, by - 8, 10, 10, 2);
@@ -87,7 +84,6 @@ function drawSpeechBubble(ctx: CanvasRenderingContext2D, x: number, y: number): 
   ctx.strokeStyle = '#f44336';
   ctx.lineWidth = 0.5;
   ctx.stroke();
-  // "!" text
   ctx.fillStyle = '#f44336';
   ctx.font = 'bold 7px monospace';
   ctx.textAlign = 'center';

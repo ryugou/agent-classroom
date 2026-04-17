@@ -48,7 +48,7 @@ export class Broadcaster {
           this.broadcast({ type: 'TeacherEntered', classroomId: res.classroomId, sessionId: ev.sessionId, cwd: ev.cwd });
         } else {
           // Teammate session → show as student
-          const studentId = asStudentId(ev.sessionId as string);
+          const studentId = asStudentId(ev.sessionId);
           this.patchSnapshot(res.classroomId, (c) => {
             if (!c.occupant) return c;
             return { ...c, occupant: { ...c.occupant, students: [...c.occupant.students, { id: studentId, state: 'active' as AgentState }] } };
@@ -63,7 +63,7 @@ export class Broadcaster {
         const { classroomId, promoted } = result;
 
         // Check if this session was a student (teammate)
-        const studentId = asStudentId(ev.sessionId as string);
+        const studentId = asStudentId(ev.sessionId);
         const classroom = this.snapshot.classrooms.find((c) => c.id === classroomId);
         const isStudent = classroom?.occupant?.students.some((s) => s.id === studentId) ?? false;
 
@@ -78,7 +78,7 @@ export class Broadcaster {
           // Teacher left
           if (promoted) {
             // Promote a student to teacher — update occupant sessionId
-            const promotedStudentId = asStudentId(promoted as string);
+            const promotedStudentId = asStudentId(promoted);
             this.patchSnapshot(classroomId, (c) => {
               if (!c.occupant) return c;
               return {
@@ -91,6 +91,7 @@ export class Broadcaster {
               };
             });
             this.broadcast({ type: 'TeacherLeft', classroomId, sessionId: ev.sessionId });
+            // promoted teacher inherits the classroom's existing cwd (may be '' if original teacher had no cwd)
             this.broadcast({ type: 'TeacherEntered', classroomId, sessionId: promoted, cwd: classroom?.occupant?.cwd ?? '' });
           } else {
             // Last session, classroom empty

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import type { ClassroomSnapshot } from '../../shared/ws-messages.js';
 import type { LayoutTemplate } from '../../shared/persistence.js';
 import { TILE_PX, buildWalkableGrid } from '../canvas/tile-map.js';
@@ -42,14 +42,17 @@ function hash(s: string): number {
 export function Classroom({ classroom, templates, preloaded, style }: Props) {
   const template = templates.find((t) => t.id === classroom.layoutTemplateId);
   const ref = useRef<HTMLCanvasElement | null>(null);
-  const loopRef = useRef<GameLoop | null>(null);
   const charsRef = useRef<Map<string, Character>>(new Map());
+
+  const grid = useMemo(
+    () => template ? buildWalkableGrid(template.tiles, template.cols, template.rows) : [],
+    [template],
+  );
 
   // Sync characters with snapshot occupant
   useEffect(() => {
     if (!template) return;
     const chars = charsRef.current;
-    const grid = buildWalkableGrid(template.tiles, template.cols, template.rows);
     const occ = classroom.occupant;
 
     if (!occ) {
@@ -73,14 +76,14 @@ export function Classroom({ classroom, templates, preloaded, style }: Props) {
     teacher.onAgentStateChanged(occ.teacherState, TILE_PX, grid);
 
     // Students
-    const activeStudentIds = new Set(occ.students.map((s) => s.id as string));
+    const activeStudentIds = new Set(occ.students.map((s) => String(s.id)));
     // Remove departed students
     for (const [k] of chars) {
       if (k !== teacherKey && !activeStudentIds.has(k)) chars.delete(k);
     }
     // Add/update students
     for (const student of occ.students) {
-      const sid = student.id as string;
+      const sid = String(student.id);
       let ch = chars.get(sid);
       if (!ch) {
         const seatIdx = occ.students.indexOf(student) % Math.max(template.seats.length, 1);
@@ -106,17 +109,15 @@ export function Classroom({ classroom, templates, preloaded, style }: Props) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.imageSmoothingEnabled = false;
-    const grid = buildWalkableGrid(template.tiles, template.cols, template.rows);
 
     const loop = new GameLoop((dt) => {
       const chars = Array.from(charsRef.current.values());
       for (const ch of chars) ch.update(dt, TILE_PX, grid);
       renderFrame(ctx, template, chars);
     });
-    loopRef.current = loop;
     loop.start();
     return () => loop.stop();
-  }, [template, preloaded]);
+  }, [template, preloaded, grid]);
 
   if (!template) {
     return <section className="classroom" style={style}>no template</section>;
