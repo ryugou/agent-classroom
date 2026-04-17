@@ -18,18 +18,16 @@ import type { SchoolhouseSnapshot } from '../shared/ws-messages.js';
 // Classroom layout (10 cols × 7 rows)
 //
 //  Col:  0    1    2    3    4    5    6    7    8    9
-// Row 0: [10] [10] [10] [20] [21] [10] [10] [10] [10] [10]   ← wall + window
-// Row 1: [12] [12] [30] [31] [32] [12] [12] [40] [41] [12]   ← wall mid + blackboard + bookshelf
-// Row 2: [ 3] [ 3] [50] [ 3] [50] [ 3] [50] [ 3] [ 3] [ 3]   ← desk row (desks at 2,4,6)
-// Row 3: [ 3] [ 4] [ 3] [ 4] [ 3] [ 4] [ 3] [ 4] [ 3] [ 3]   ← seat row (students face the board)
-// Row 4: [ 4] [ 3] [ 4] [ 3] [ 4] [ 3] [ 4] [ 3] [ 4] [ 3]   ← open floor
-// Row 5: [ 3] [ 3] [ 3] [ 3] [50] [ 3] [ 3] [ 3] [ 3] [ 3]   ← teacher desk at col 4; teacher stands col 5
-// Row 6: [ 4] [ 3] [ 4] [ 3] [ 4] [ 3] [ 4] [ 3] [ 4] [ 3]   ← entrance floor
+// Row 0: [10] [10] [10] [30] [31] [10] [10] [10] [40] [41]   ← wall + blackboard + bookshelf
+// Row 1: [11] [11] [20] [21] [11] [20] [21] [11] [11] [11]   ← lower wall + windows
+// Row 2: [ 3] [50] [50] [ 3] [50] [50] [ 3] [50] [50] [ 3]   ← desk row 1
+// Row 3: [ 3] [ 3] [ 3] [ 3] [ 3] [ 3] [ 3] [ 3] [ 3] [ 3]   ← student seats
+// Row 4: [ 3] [50] [50] [ 3] [50] [50] [ 3] [50] [50] [ 3]   ← desk row 2
+// Row 5: [ 3] [ 3] [ 3] [ 3] [50] [ 3] [ 3] [ 3] [ 3] [ 3]   ← teacher desk
+// Row 6: [ 3] [ 4] [ 3] [ 4] [ 3] [ 4] [ 3] [ 4] [ 3] [ 4]   ← entrance
 //
-// Seats (walkable floor tiles where students stand, in front of their desks):
-//   Row 3 cols 2, 4, 6  — in front of the desk tiles in row 2
-//   Row 4 cols 2, 4, 6  — second row of seats (open floor)
-// Teacher stands at (row 5, col 5) — floor tile to the right of the teacher desk furniture
+// Seats: Row 3 cols 1, 2, 4, 5, 7, 8
+// Teacher stands at (row 5, col 5)
 const DEFAULT_TEMPLATE: LayoutTemplate = {
   id: 'default',
   cols: 10,

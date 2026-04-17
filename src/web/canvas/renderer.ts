@@ -79,7 +79,11 @@ function drawSpeechBubble(ctx: CanvasRenderingContext2D, x: number, y: number): 
   const by = y - 6;
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
-  ctx.roundRect(bx - 5, by - 8, 10, 10, 2);
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(bx - 5, by - 8, 10, 10, 2);
+  } else {
+    ctx.rect(bx - 5, by - 8, 10, 10);
+  }
   ctx.fill();
   ctx.strokeStyle = '#f44336';
   ctx.lineWidth = 0.5;

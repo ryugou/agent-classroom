@@ -93,9 +93,9 @@ export class Broadcaster {
                 },
               };
             });
-            this.broadcast({ type: 'TeacherLeft', classroomId, sessionId: ev.sessionId });
             // promoted teacher inherits the classroom's existing cwd (may be '' if original teacher had no cwd)
             this.broadcast({ type: 'TeacherEntered', classroomId, sessionId: promoted, cwd: classroom?.occupant?.cwd ?? '' });
+            this.broadcast({ type: 'TeacherLeft', classroomId, sessionId: ev.sessionId });
           } else {
             // Last session, classroom empty
             this.patchSnapshot(classroomId, (c) => ({ ...c, occupant: null }));

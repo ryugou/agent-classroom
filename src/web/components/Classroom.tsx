@@ -82,11 +82,11 @@ export function Classroom({ classroom, templates, preloaded, style }: Props) {
       if (k !== teacherKey && !activeStudentIds.has(k)) chars.delete(k);
     }
     // Add/update students
-    for (const student of occ.students) {
+    for (const [index, student] of occ.students.entries()) {
       const sid = String(student.id);
       let ch = chars.get(sid);
       if (!ch) {
-        const seatIdx = occ.students.indexOf(student) % Math.max(template.seats.length, 1);
+        const seatIdx = index % Math.max(template.seats.length, 1);
         const seat = template.seats[seatIdx] ?? template.teacherDesk;
         ch = new Character({
           id: sid,
