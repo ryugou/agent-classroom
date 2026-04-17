@@ -10,19 +10,21 @@ const tpl: LayoutTemplate = {
 };
 const ids = [newClassroomId(0), newClassroomId(1)];
 
+const makeSnapshot = (classroomIds = ids) => ({
+  gridShape: { cols: classroomIds.length, rows: 1 },
+  classrooms: classroomIds.map((id, i) => ({
+    id, gridPos: { row: 0, col: i }, layoutTemplateId: 'default', occupant: null,
+  })),
+  layoutTemplates: [tpl],
+});
+
 describe('Broadcaster', () => {
   it('sends ClassroomList on new subscription', () => {
     const mgr = new ClassroomManager(ids);
     const b = new Broadcaster({
       manager: mgr,
       layoutFilePath: '/tmp/test-layout.json',
-      initialSnapshot: {
-        gridShape: { cols: 2, rows: 1 },
-        classrooms: ids.map((id, i) => ({
-          id, gridPos: { row: 0, col: i }, layoutTemplateId: 'default', occupant: null,
-        })),
-        layoutTemplates: [tpl],
-      },
+      initialSnapshot: makeSnapshot(),
     });
     const received: WSMessage[] = [];
     b.subscribe((m) => received.push(m));
@@ -34,13 +36,7 @@ describe('Broadcaster', () => {
     const b = new Broadcaster({
       manager: mgr,
       layoutFilePath: '/tmp/test-layout.json',
-      initialSnapshot: {
-        gridShape: { cols: 2, rows: 1 },
-        classrooms: ids.map((id, i) => ({
-          id, gridPos: { row: 0, col: i }, layoutTemplateId: 'default', occupant: null,
-        })),
-        layoutTemplates: [tpl],
-      },
+      initialSnapshot: makeSnapshot(),
     });
     const received: WSMessage[] = [];
     b.subscribe((m) => received.push(m));
@@ -51,22 +47,19 @@ describe('Broadcaster', () => {
   });
 
   it('emits Toast on overflow', () => {
-    const mgr = new ClassroomManager([newClassroomId(0)]);  // N=1
+    const singleId = [newClassroomId(0)];
+    const mgr = new ClassroomManager(singleId);
     const b = new Broadcaster({
       manager: mgr,
       layoutFilePath: '/tmp/test-layout.json',
-      initialSnapshot: {
-        gridShape: { cols: 1, rows: 1 },
-        classrooms: [{ id: newClassroomId(0), gridPos: { row: 0, col: 0 }, layoutTemplateId: 'default', occupant: null }],
-        layoutTemplates: [tpl],
-      },
+      initialSnapshot: makeSnapshot(singleId),
     });
     const received: WSMessage[] = [];
     b.subscribe((m) => received.push(m));
     received.length = 0;
 
-    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('s1'), cwd: '', startedAt: 0 });
-    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('s2'), cwd: '', startedAt: 0 });
+    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('s1'), cwd: '/proj-a', startedAt: 0 });
+    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('s2'), cwd: '/proj-b', startedAt: 0 });
     expect(received).toContainEqual(expect.objectContaining({ type: 'Toast', level: 'warn' }));
   });
 
@@ -75,19 +68,13 @@ describe('Broadcaster', () => {
     const b = new Broadcaster({
       manager: mgr,
       layoutFilePath: '/tmp/test-layout.json',
-      initialSnapshot: {
-        gridShape: { cols: 2, rows: 1 },
-        classrooms: ids.map((id, i) => ({
-          id, gridPos: { row: 0, col: i }, layoutTemplateId: 'default', occupant: null,
-        })),
-        layoutTemplates: [tpl],
-      },
+      initialSnapshot: makeSnapshot(),
     });
     const received: WSMessage[] = [];
     b.subscribe((m) => received.push(m));
     received.length = 0;
 
-    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('s1'), cwd: '', startedAt: 0 });
+    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('s1'), cwd: '/proj', startedAt: 0 });
     b.ingest({ type: 'StateChanged', sessionId: asSessionId('s1'), target: 'teacher', state: 'active', changedAt: 10 });
     expect(received).toContainEqual(expect.objectContaining({ type: 'StateChanged', state: 'active' }));
   });
@@ -97,19 +84,13 @@ describe('Broadcaster', () => {
     const b = new Broadcaster({
       manager: mgr,
       layoutFilePath: '/tmp/test-layout.json',
-      initialSnapshot: {
-        gridShape: { cols: 2, rows: 1 },
-        classrooms: ids.map((id, i) => ({
-          id, gridPos: { row: 0, col: i }, layoutTemplateId: 'default', occupant: null,
-        })),
-        layoutTemplates: [tpl],
-      },
+      initialSnapshot: makeSnapshot(),
     });
     const received: WSMessage[] = [];
     b.subscribe((m) => received.push(m));
     received.length = 0;
 
-    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('s1'), cwd: '', startedAt: 0 });
+    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('s1'), cwd: '/proj', startedAt: 0 });
     b.ingest({ type: 'SessionEnded', sessionId: asSessionId('s1'), endedAt: 10 });
     expect(received).toContainEqual(expect.objectContaining({ type: 'TeacherLeft', classroomId: ids[0] }));
 
@@ -126,24 +107,18 @@ describe('Broadcaster', () => {
     const b = new Broadcaster({
       manager: mgr,
       layoutFilePath: '/tmp/test-layout.json',
-      initialSnapshot: {
-        gridShape: { cols: 2, rows: 1 },
-        classrooms: ids.map((id, i) => ({
-          id, gridPos: { row: 0, col: i }, layoutTemplateId: 'default', occupant: null,
-        })),
-        layoutTemplates: [tpl],
-      },
+      initialSnapshot: makeSnapshot(),
     });
     const received: WSMessage[] = [];
     b.subscribe((m) => received.push(m));
     received.length = 0;
 
-    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('s1'), cwd: '', startedAt: 0 });
+    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('s1'), cwd: '/proj', startedAt: 0 });
     b.ingest({ type: 'StudentSpawned', sessionId: asSessionId('s1'), studentId: asStudentId('stu'), parentToolUseId: 'tu_1', spawnedAt: 10 });
     received.length = 0;
 
     // Duplicate SessionStarted should be a no-op
-    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('s1'), cwd: '', startedAt: 20 });
+    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('s1'), cwd: '/proj', startedAt: 20 });
     expect(received.filter((m) => m.type === 'TeacherEntered')).toHaveLength(0);
 
     // Verify student preserved
@@ -159,13 +134,7 @@ describe('Broadcaster', () => {
     const b = new Broadcaster({
       manager: mgr,
       layoutFilePath: '/tmp/test-layout.json',
-      initialSnapshot: {
-        gridShape: { cols: 2, rows: 1 },
-        classrooms: ids.map((id, i) => ({
-          id, gridPos: { row: 0, col: i }, layoutTemplateId: 'default', occupant: null,
-        })),
-        layoutTemplates: [tpl],
-      },
+      initialSnapshot: makeSnapshot(),
     });
     const received: WSMessage[] = [];
     b.subscribe((m) => received.push(m));
@@ -175,5 +144,81 @@ describe('Broadcaster', () => {
     b.ingest({ type: 'StudentSpawned', sessionId: asSessionId('ghost'), studentId: asStudentId('stu'), parentToolUseId: 'tu', spawnedAt: 0 });
     b.ingest({ type: 'StateChanged', sessionId: asSessionId('ghost'), target: 'teacher', state: 'active', changedAt: 0 });
     expect(received).toHaveLength(0);
+  });
+
+  // --- Project-based grouping tests ---
+
+  it('teammate session from same project enters as student', () => {
+    const mgr = new ClassroomManager(ids);
+    const b = new Broadcaster({
+      manager: mgr,
+      layoutFilePath: '/tmp/test-layout.json',
+      initialSnapshot: makeSnapshot(),
+    });
+    const received: WSMessage[] = [];
+    b.subscribe((m) => received.push(m));
+    received.length = 0;
+
+    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('teacher'), cwd: '/proj', startedAt: 0 });
+    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('teammate'), cwd: '/proj', startedAt: 1 });
+
+    expect(received).toContainEqual(expect.objectContaining({ type: 'TeacherEntered', classroomId: ids[0] }));
+    expect(received).toContainEqual(expect.objectContaining({ type: 'StudentEntered', classroomId: ids[0], studentId: 'teammate' }));
+
+    // Snapshot should have 1 student
+    const later: WSMessage[] = [];
+    b.subscribe((m) => later.push(m));
+    const list = later[0];
+    if (list?.type !== 'ClassroomList') throw new Error('expected ClassroomList');
+    expect(list.snapshot.classrooms[0]!.occupant?.students).toHaveLength(1);
+  });
+
+  it('teammate session ending removes student', () => {
+    const mgr = new ClassroomManager(ids);
+    const b = new Broadcaster({
+      manager: mgr,
+      layoutFilePath: '/tmp/test-layout.json',
+      initialSnapshot: makeSnapshot(),
+    });
+    const received: WSMessage[] = [];
+    b.subscribe((m) => received.push(m));
+    received.length = 0;
+
+    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('teacher'), cwd: '/proj', startedAt: 0 });
+    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('teammate'), cwd: '/proj', startedAt: 1 });
+    received.length = 0;
+
+    b.ingest({ type: 'SessionEnded', sessionId: asSessionId('teammate'), endedAt: 10 });
+    expect(received).toContainEqual(expect.objectContaining({ type: 'StudentLeft', classroomId: ids[0], studentId: 'teammate' }));
+  });
+
+  it('teacher leaving with students promotes a student to teacher', () => {
+    const mgr = new ClassroomManager(ids);
+    const b = new Broadcaster({
+      manager: mgr,
+      layoutFilePath: '/tmp/test-layout.json',
+      initialSnapshot: makeSnapshot(),
+    });
+    const received: WSMessage[] = [];
+    b.subscribe((m) => received.push(m));
+    received.length = 0;
+
+    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('teacher'), cwd: '/proj', startedAt: 0 });
+    b.ingest({ type: 'SessionStarted', sessionId: asSessionId('teammate'), cwd: '/proj', startedAt: 1 });
+    received.length = 0;
+
+    b.ingest({ type: 'SessionEnded', sessionId: asSessionId('teacher'), endedAt: 10 });
+    expect(received).toContainEqual(expect.objectContaining({ type: 'TeacherLeft', classroomId: ids[0], sessionId: asSessionId('teacher') }));
+    expect(received).toContainEqual(expect.objectContaining({ type: 'TeacherEntered', classroomId: ids[0], sessionId: asSessionId('teammate') }));
+
+    // Snapshot: promoted session is now the occupant, no students remain
+    const later: WSMessage[] = [];
+    b.subscribe((m) => later.push(m));
+    const list = later[0];
+    if (list?.type !== 'ClassroomList') throw new Error('expected ClassroomList');
+    const occ = list.snapshot.classrooms[0]!.occupant;
+    expect(occ).not.toBeNull();
+    expect(occ!.sessionId).toBe('teammate');
+    expect(occ!.students).toHaveLength(0);
   });
 });

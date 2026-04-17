@@ -39,6 +39,15 @@ export class StateInferrer {
     switch (record.kind) {
       case 'ToolUseDetected':
         this.pendingTools.set(record.toolUseId, record.toolName);
+        if (record.toolName === 'Agent') {
+          this.opts.emit({
+            type: 'StudentSpawned',
+            sessionId: this.opts.sessionId,
+            studentId: asStudentId(record.toolUseId),
+            parentToolUseId: record.toolUseId,
+            spawnedAt: record.at,
+          });
+        }
         this.setState('active', record.at);
         break;
       case 'TurnDurationDetected':
@@ -54,6 +63,14 @@ export class StateInferrer {
         this.clearPermissionTimer();
         const toolName = this.pendingTools.get(record.toolUseId);
         this.pendingTools.delete(record.toolUseId);
+        if (toolName === 'Agent') {
+          this.opts.emit({
+            type: 'StudentDespawned',
+            sessionId: this.opts.sessionId,
+            studentId: asStudentId(record.toolUseId),
+            despawnedAt: record.at,
+          });
+        }
         if (toolName !== undefined && !EXEMPT_TOOLS.has(toolName)) {
           this.permissionTimer = setTimeout(
             () => this.setState('permission', this.opts.now()),

@@ -1,7 +1,8 @@
 import type { ClassroomManager } from './classroom-manager.js';
-import type { ObservationEvent } from '../shared/events.js';
+import type { ObservationEvent, AgentState } from '../shared/events.js';
 import type { WSMessage, SchoolhouseSnapshot, ClassroomSnapshot } from '../shared/ws-messages.js';
 import type { ClassroomId } from '../shared/ids.js';
+import { asStudentId } from '../shared/ids.js';
 
 export interface BroadcasterOptions {
   manager: ClassroomManager;
@@ -30,26 +31,73 @@ export class Broadcaster {
   ingest(ev: ObservationEvent): void {
     switch (ev.type) {
       case 'SessionStarted': {
-        const res = this.manager.assign(ev.sessionId);
+        const res = this.manager.assign(ev.sessionId, ev.cwd);
         if (!res.ok) {
           this.broadcast({ type: 'Toast', level: 'warn', message: `教室が全て埋まっています (session=${ev.sessionId})。--classrooms を増やして再起動するか、${this.layoutFilePath} を削除して再初期化してください。` });
           return;
         }
-        const existing = this.snapshot.classrooms.find((c) => c.id === res.classroomId);
-        if (existing?.occupant?.sessionId === ev.sessionId) return; // already announced
-        this.patchSnapshot(res.classroomId, (c) => ({
-          ...c,
-          occupant: { sessionId: ev.sessionId, teacherState: 'idle', students: [] },
-        }));
-        this.broadcast({ type: 'TeacherEntered', classroomId: res.classroomId, sessionId: ev.sessionId, cwd: ev.cwd });
+
+        if (res.role === 'teacher') {
+          // Check for duplicate teacher announcement
+          const existing = this.snapshot.classrooms.find((c) => c.id === res.classroomId);
+          if (existing?.occupant?.sessionId === ev.sessionId) return;
+          this.patchSnapshot(res.classroomId, (c) => ({
+            ...c,
+            occupant: { sessionId: ev.sessionId, cwd: ev.cwd, teacherState: 'idle', students: [] },
+          }));
+          this.broadcast({ type: 'TeacherEntered', classroomId: res.classroomId, sessionId: ev.sessionId, cwd: ev.cwd });
+        } else {
+          // Teammate session → show as student
+          const studentId = asStudentId(ev.sessionId as string);
+          this.patchSnapshot(res.classroomId, (c) => {
+            if (!c.occupant) return c;
+            return { ...c, occupant: { ...c.occupant, students: [...c.occupant.students, { id: studentId, state: 'active' as AgentState }] } };
+          });
+          this.broadcast({ type: 'StudentEntered', classroomId: res.classroomId, studentId });
+        }
         break;
       }
       case 'SessionEnded': {
-        const cid = this.manager.classroomOf(ev.sessionId);
-        if (!cid) return; // stale event after session ended — ignore
-        this.manager.release(ev.sessionId);
-        this.patchSnapshot(cid, (c) => ({ ...c, occupant: null }));
-        this.broadcast({ type: 'TeacherLeft', classroomId: cid, sessionId: ev.sessionId });
+        const result = this.manager.release(ev.sessionId);
+        if (!result) return; // stale event after session ended — ignore
+        const { classroomId, promoted } = result;
+
+        // Check if this session was a student (teammate)
+        const studentId = asStudentId(ev.sessionId as string);
+        const classroom = this.snapshot.classrooms.find((c) => c.id === classroomId);
+        const isStudent = classroom?.occupant?.students.some((s) => s.id === studentId) ?? false;
+
+        if (isStudent) {
+          // Remove student
+          this.patchSnapshot(classroomId, (c) => {
+            if (!c.occupant) return c;
+            return { ...c, occupant: { ...c.occupant, students: c.occupant.students.filter((s) => s.id !== studentId) } };
+          });
+          this.broadcast({ type: 'StudentLeft', classroomId, studentId });
+        } else {
+          // Teacher left
+          if (promoted) {
+            // Promote a student to teacher — update occupant sessionId
+            const promotedStudentId = asStudentId(promoted as string);
+            this.patchSnapshot(classroomId, (c) => {
+              if (!c.occupant) return c;
+              return {
+                ...c,
+                occupant: {
+                  ...c.occupant,
+                  sessionId: promoted,
+                  students: c.occupant.students.filter((s) => s.id !== promotedStudentId),
+                },
+              };
+            });
+            this.broadcast({ type: 'TeacherLeft', classroomId, sessionId: ev.sessionId });
+            this.broadcast({ type: 'TeacherEntered', classroomId, sessionId: promoted, cwd: classroom?.occupant?.cwd ?? '' });
+          } else {
+            // Last session, classroom empty
+            this.patchSnapshot(classroomId, (c) => ({ ...c, occupant: null }));
+            this.broadcast({ type: 'TeacherLeft', classroomId, sessionId: ev.sessionId });
+          }
+        }
         break;
       }
       case 'StudentSpawned': {

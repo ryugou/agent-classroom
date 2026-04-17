@@ -111,6 +111,41 @@ describe('StateInferrer', () => {
     expect(events).toContainEqual(expect.objectContaining({ type: 'StudentDespawned' }));
   });
 
+  it('Agent tool_use → StudentSpawned with toolUseId as studentId', () => {
+    const inf = makeInferrer();
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_agent_1', toolName: 'Agent', at: 800 });
+    const spawns = events.filter((e) => e.type === 'StudentSpawned');
+    expect(spawns).toHaveLength(1);
+    expect(spawns[0]).toMatchObject({
+      type: 'StudentSpawned',
+      sessionId,
+      studentId: 'tu_agent_1',
+      parentToolUseId: 'tu_agent_1',
+      spawnedAt: 800,
+    });
+  });
+
+  it('Agent tool_result → StudentDespawned', () => {
+    const inf = makeInferrer();
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_agent_2', toolName: 'Agent', at: 900 });
+    inf.ingest({ kind: 'ToolResultDetected', toolUseId: 'tu_agent_2', at: 1000 });
+    const despawns = events.filter((e) => e.type === 'StudentDespawned');
+    expect(despawns).toHaveLength(1);
+    expect(despawns[0]).toMatchObject({
+      type: 'StudentDespawned',
+      sessionId,
+      studentId: 'tu_agent_2',
+      despawnedAt: 1000,
+    });
+  });
+
+  it('non-Agent tool_use does not emit StudentSpawned', () => {
+    const inf = makeInferrer();
+    inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_bash', toolName: 'Bash', at: 1100 });
+    const spawns = events.filter((e) => e.type === 'StudentSpawned');
+    expect(spawns).toHaveLength(0);
+  });
+
   it('cancels pending permission timer when a new ToolResultDetected arrives', () => {
     const inf = makeInferrer();
     inf.ingest({ kind: 'ToolUseDetected', toolUseId: 'tu_1', toolName: 'Bash', at: 0 });
